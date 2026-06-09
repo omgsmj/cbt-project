@@ -1,0 +1,297 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <title>정보처리기사 CBT 실전 시험장 (DB 연동형)</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; }
+        .container { display: flex; max-width: 1200px; margin: 0 auto; padding: 20px; gap: 20px; }
+        .quiz-area { flex: 7; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .option-label { display: block; padding: 8px 12px; margin: 5px 0; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
+        .option-label:hover { background-color: #f0f4f8; }
+        .option-label:has(input[type="radio"]:checked) { background-color: #e7f3ff; color: #007BFF; font-weight: bold; }
+        .omr-sidebar { flex: 3; background: #333; color: white; padding: 20px; border-radius: 8px; position: sticky; top: 20px; height: 85vh; display: flex; flex-direction: column; }
+        .omr-container { flex: 1; overflow-y: auto; margin-top: 15px; padding-right: 5px; }
+        .omr-row { display: flex; align-items: center; margin-bottom: 8px; background: #444; padding: 5px; border-radius: 4px; }
+        .omr-num { width: 40px; font-weight: bold; text-align: center; color: #ff9900; }
+        .omr-options { display: flex; gap: 10px; }
+        .omr-btn { width: 25px; height: 25px; border-radius: 50%; background: #666; border: none; color: white; font-size: 12px; cursor: pointer; text-align: center; line-height: 25px; padding: 0; }
+        .omr-btn.selected { background-color: #ff9900 !important; color: black !important; font-weight: bold; }
+        .omr-row.incorrect-row { background-color: #ffdddd !important; border: 1px solid #ff3333; }
+        .omr-row.incorrect-row .omr-num { color: #cc0000 !important; }
+        .control-bar { background: #007BFF; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
+        .timer-box { font-size: 22px; font-weight: bold; background: rgba(0,0,0,0.2); padding: 5px 15px; border-radius: 5px; }
+        .btn-submit { width: 100%; padding: 15px; background: #28a745; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
+        .btn-submit:hover { background: #218838; }
+        .result-box { display: none; background: #e9ecef; padding: 25px; margin-bottom: 20px; border-radius: 8px; color: black; border-left: 5px solid #007BFF; }
+        .score-summary { display: flex; gap: 15px; margin: 15px 0; background: white; padding: 15px; border-radius: 5px; flex-wrap: wrap; }
+        .score-item { flex: 1; min-width: 140px; text-align: center; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; }
+        .score-item.gwarak { border-color: red; background: #fff5f5; color: red; }
+        .q-success { border-left: 5px solid #28a745; background-color: #f6fff6; }
+        .q-danger { border-left: 5px solid #dc3545; background-color: #fff6f6; }
+        .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
+        .modal-content { background-color: white; margin: 5% auto; padding: 30px; width: 70%; max-width: 800px; border-radius: 10px; position: relative; }
+        .close-btn { position: absolute; right: 25px; top: 20px; font-size: 30px; font-weight: bold; color: #aaa; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="control-bar">
+        <h2>정보처리기사 CBT 실전 시험장 (PostgreSQL 연동)</h2>
+        <div>
+            <button onclick="loadExam(1)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">1회차</button>
+            <button onclick="loadExam(2)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">2회차</button>
+            <button onclick="loadExam(3)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">3회차</button>
+        </div>
+        <div id="timer" class="timer-box">남은 시간: 150분 00초</div>
+    </div>
+
+    <div class="container">
+        <div class="quiz-area">
+            <div id="result-area" class="result-box"></div>
+            <div id="test-area">상단의 회차 버튼을 선택하시면 데이터베이스에서 기출문제를 실시간으로 조회합니다.</div>
+        </div>
+        
+        <div class="omr-sidebar">
+            <h3 style="margin: 0; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px;">OMR ANSWER SHEET</h3>
+            <div id="omr-card-area" class="omr-container"></div>
+            <button class="btn-submit" onclick="submitExam()">답안 제출 (서버 전송)</button>
+            <button onclick="location.href='index.html'" style="margin-top: 10px; background: none; border: 1px solid #aaa; color: #ccc; cursor: pointer; padding: 5px;">메인으로</button>
+        </div>
+    </div>
+
+    <div id="explain-modal" class="modal">
+        <div class="modal-content">
+            <span class="close-btn" onclick="closeModal()">&times;</span>
+            <h2 style="color: #dc3545; border-bottom: 2px solid #dc3545; padding-bottom: 10px;">❌ 오답 해설 및 분석 창 (실시간 DB 기록)</h2>
+            <div id="modal-body" style="max-height: 60vh; overflow-y: auto;"></div>
+            <button onclick="closeModal()" style="width:100%; padding:12px; margin-top:20px; font-weight:bold; background:#333; color:white; border:none; border-radius:5px; cursor:pointer;">확인 후 닫기</button>
+        </div>
+    </div>
+
+    <script>
+        // 백엔드 기본 서버 주소 주입
+        const BACKEND_URL = "http://localhost:3000";
+
+        let currentQuestions = []; 
+        let userAnswers = {};      
+        let timerInterval;
+        let currentExamTitle = ""; 
+        const optionSymbols = ["", "①", "②", "③", "④"];
+
+        function getFormattedDate() {
+            const now = new Date();
+            const yy = String(now.getFullYear()).slice(-2);
+            const mm = String(now.getMonth() + 1).padStart(2, '0');
+            const dd = String(now.getDate()).padStart(2, '0');
+            const hh = String(now.getHours()).padStart(2, '0');
+            const min = String(now.getMinutes()).padStart(2, '0');
+            return `${yy}/${mm}/${dd} ${hh}:${min}`;
+        }
+
+        // ★ [변경 기능] 로컬 배열 대신 백엔드 서버에서 100문항을 긁어오는 핵심 비동기 함수
+        async function loadExam(sessionNum) {
+            currentExamTitle = `${sessionNum}회차 모의고사`;
+            const testArea = document.getElementById("test-area");
+            testArea.innerHTML = "<h3>🔄 데이터베이스에서 기출문제를 불러오는 중입니다...</h3>";
+
+            try {
+                // 백엔드 API 호출 수행
+                const response = await fetch(`${BACKEND_URL}/api/questions?session=${sessionNum}`);
+                if (!response.ok) throw new Error("네트워크 응답 실패");
+                
+                const data = await response.json();
+                if(data.length === 0) {
+                    testArea.innerHTML = "<h3>⚠️ 해당 회차의 데이터가 DB에 존재하지 않습니다. (2단계 마이그레이션 확인 요망)</h3>";
+                    return;
+                }
+                renderQuestions(data);
+            } catch (err) {
+                console.error(err);
+                testArea.innerHTML = "<h3>❌ 백엔드 서버 연결 실패! 터미널에서 'node server.js'가 켜져 있는지 확인하세요.</h3>";
+            }
+        }
+
+        function renderQuestions(questions) {
+            currentQuestions = questions;
+            userAnswers = {}; 
+            const testArea = document.getElementById("test-area");
+            const omrArea = document.getElementById("omr-card-area");
+            document.getElementById("result-area").style.display = "none"; 
+
+            let quizHtml = "";
+            let omrHtml = "";
+
+            questions.forEach(function(item, index) {
+                const displayNum = index + 1; 
+                const padNum = String(displayNum).padStart(2, '0');
+                
+                quizHtml += `<div id="q-box-${displayNum}" style="margin-bottom: 35px; padding: 15px; border-radius: 6px;">`;
+                quizHtml += `<h3 style="margin-bottom: 15px;">${padNum} [${item.subject}] ${item.question}</h3>`;
+                
+                item.options.forEach(function(opt, optIdx) {
+                    const answerVal = optIdx + 1;
+                    quizHtml += `
+                        <label class="option-label">
+                            <input type="radio" name="group_${displayNum}" value="${answerVal}" onclick="markOMR(${displayNum}, ${answerVal})"> 
+                            ${optionSymbols[answerVal]} ${opt}
+                        </label>`;
+                });
+                quizHtml += `</div><hr>`;
+
+                omrHtml += `
+                    <div class="omr-row" id="omr-row-${displayNum}">
+                        <div class="omr-num">${padNum}</div>
+                        <div class="omr-options">
+                            <button class="omr-btn" id="omr-${displayNum}-1" onclick="jumpToQuestion(${displayNum}, 1)">1</button>
+                            <button class="omr-btn" id="omr-${displayNum}-2" onclick="jumpToQuestion(${displayNum}, 2)">2</button>
+                            <button class="omr-btn" id="omr-${displayNum}-3" onclick="jumpToQuestion(${displayNum}, 3)">3</button>
+                            <button class="omr-btn" id="omr-${displayNum}-4" onclick="jumpToQuestion(${displayNum}, 4)">4</button>
+                        </div>
+                    </div>`;
+            });
+
+            testArea.innerHTML = quizHtml;
+            omrArea.innerHTML = omrHtml;
+            window.scrollTo(0, 0);
+            startTimer();
+        }
+
+        function markOMR(displayNum, answerVal) {
+            userAnswers[displayNum] = answerVal; 
+            for (let i = 1; i <= 4; i++) {
+                document.getElementById(`omr-${displayNum}-${i}`).classList.remove("selected");
+            }
+            document.getElementById(`omr-${displayNum}-${answerVal}`).classList.add("selected");
+        }
+
+        function jumpToQuestion(displayNum, clickBtnNum) {
+            const element = document.getElementById(`q-box-${displayNum}`);
+            if(element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            const radioButtons = document.getElementsByName(`group_${displayNum}`);
+            if(radioButtons.length > 0) {
+                radioButtons[clickBtnNum - 1].checked = true;
+                markOMR(displayNum, clickBtnNum);
+            }
+        }
+
+        function startTimer() {
+            clearInterval(timerInterval);
+            let time = 150 * 60; 
+            const timerDisplay = document.getElementById("timer");
+
+            timerInterval = setInterval(function() {
+                let min = Math.floor(time / 60);
+                let sec = time % 60;
+                if (sec < 10) sec = "0" + sec;
+                timerDisplay.innerText = `남은 시간: ${min}분 ${sec}초`;
+                time--;
+                if (time < 0) { clearInterval(timerInterval); submitExam(); }
+            }, 1000);
+        }
+
+        // ★ [변경 기능] 로컬 저장소를 파괴하고 결과를 백엔드 서버 POST 라우터로 넘겨 DB 트랜잭션 적재 유도
+        async function submitExam() {
+            if(currentQuestions.length === 0) return;
+            
+            let hasUnanswered = false;
+            currentQuestions.forEach(function(item, index) {
+                if (!userAnswers[index + 1]) hasUnanswered = true;
+            });
+
+            if (hasUnanswered && !confirm("아직 풀지 않은 문제가 있습니다. 그래도 제출하시겠습니까?")) return;
+
+            clearInterval(timerInterval); 
+
+            let subjectScores = {
+                "소프트웨어설계": 0, "소프트웨어개발": 0, "데이터베이스구축": 0, "프로그래밍언어활용": 0, "정보시스템구축관리": 0
+            };
+            let totalCorrect = 0;
+            let modalHtml = ""; 
+            let folderWrongQuestions = [];
+
+            currentQuestions.forEach(function(item, index) {
+                const displayNum = index + 1;
+                const userAnswer = userAnswers[displayNum] || "미제출";
+                const correctAnswer = item.answer;
+                const qBlock = document.getElementById(`q-box-${displayNum}`);
+                const omrRow = document.getElementById(`omr-row-${displayNum}`);
+
+                if (parseInt(userAnswer) === parseInt(correctAnswer)) {
+                    totalCorrect++;
+                    if(subjectScores[item.subject] !== undefined) subjectScores[item.subject]++;
+                    if(qBlock) qBlock.classList.add("q-success");
+                } else {
+                    if(qBlock) qBlock.classList.add("q-danger");
+                    if(omrRow) omrRow.classList.add("incorrect-row");
+
+                    modalHtml += `
+                        <div style="padding:15px; margin-bottom:15px; background:#fff0f0; border-left:4px solid #dc3545; border-radius:4px;">
+                            <h4>❌ ${displayNum}번 [${item.subject}]</h4>
+                            <p style="font-weight:bold;">문제: ${item.question}</p>
+                            <p style="color:#777;">내가 쓴 답: ${userAnswer}번 / <span style="color:#28a745; font-weight:bold;">정답: ${correctAnswer}번</span></p>
+                        </div>`;
+
+                    folderWrongQuestions.push({
+                        session: item.session,
+                        number: item.number,
+                        userAnswer: userAnswer
+                    });
+                }
+            });
+
+            const finalScore = Math.round((totalCorrect / currentQuestions.length) * 100);
+            let isGwarak = false;
+            let gwarakReportHtml = "";
+            
+            for (const sub in subjectScores) {
+                const subScore = subjectScores[sub] * 5; 
+                let isSubGwarak = subScore < 40;
+                if(isSubGwarak) isGwarak = true;
+                gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b><br>${subScore}점 (${subjectScores[sub]}/20)</div>`;
+            }
+
+            const isPass = finalScore >= 60 && !isGwarak;
+            
+            // 패킷 바구니 조립 후 서버로 POST 네트워크 요청 실시
+            const payload = {
+                folderName: `${getFormattedDate()} 제출`,
+                examTitle: currentExamTitle,
+                score: finalScore,
+                result: isPass ? "합격" : "불합격",
+                wrongQuestions: folderWrongQuestions
+            };
+
+            try {
+                const saveResponse = await fetch(`${BACKEND_URL}/api/results`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+                const saveResult = await saveResponse.json();
+                console.log("DB 저장 여부 응답:", saveResult.message);
+            } catch(e) {
+                console.error("결과 서버 전송 실패:", e);
+                alert("채점 계산은 완료되었으나, 백엔드 서버와 통신이 끊겨 DB 저장에는 실패했습니다.");
+            }
+
+            const resultArea = document.getElementById("result-area");
+            resultArea.style.display = "block";
+
+            let summaryHtml = isPass 
+                ? `<span class="pass">🎉 합격입니다! (획득 점수: ${finalScore}점)</span>` 
+                : `<span class="fail">😭 불합격입니다. (획득 점수: ${finalScore}점)</span>`;
+
+            resultArea.innerHTML = summaryHtml + `<h4>[과목별 상세 점수 획득 현황]</h4><div class="score-summary">${gwarakReportHtml}</div>`;
+            
+            if(modalHtml !== "") {
+                document.getElementById("modal-body").innerHTML = modalHtml;
+                document.getElementById("explain-modal").style.display = "block";
+            }
+            window.scrollTo(0, 0); 
+        }
+
+        function closeModal() { document.getElementById("explain-modal").style.display = "none"; }
+    </script>
+</body>
+</html>
