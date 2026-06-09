@@ -10,7 +10,8 @@ const PORT = process.env.PORT || 3000;
 // 2. 미들웨어 설정 (서버 통신 규격 세팅)
 app.use(cors()); // 프론트엔드 브라우저의 CORS 차단 정책 해제
 app.use(express.json()); // 브라우저가 보낸 JSON 데이터를 자바스크립트 객체로 파싱
-
+// 서버가 현재 폴더에 있는 HTML 파일들을 브라우저에 직접 보내주도록 설정하는 마법의 코드
+app.use(express.static(__dirname));
 // 3. PostgreSQL 데이터베이스 연결 설정 (커넥션 풀 생성)
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -20,10 +21,11 @@ const pool = new Pool({
     database: process.env.DB_DATABASE
 });
 
-// [연동 테스트용 라우트] 브라우저나 주소창에 localhost:3000 치면 나오는 기본 화면
+const path = require('path'); // 파일 경로를 다루는 도구
+
 app.get('/', (req, res) => {
-    res.send('🚀 정보처리기사 CBT 백엔드 서버가 정상 구동 중입니다!');
-});
+    res.sendFile(path.join(__dirname, 'index.html'));
+}); // ➔ 여기에 중괄호 '}'와 소괄호 ')'가 정확히 닫혀야 에러가 나지 않습니다!
 
 // ----------------------------------------------------
 // [API 1] 기출문제 조회 통로 (GET /api/questions?session=1)
