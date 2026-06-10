@@ -2,46 +2,242 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>정보처리기사 CBT 실전 시험장 (DB 연동형)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shins 정보처리기사 - 실전 시험장</title>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; margin: 0; padding: 0; background-color: #f4f6f9; }
-        .container { display: flex; max-width: 1200px; margin: 0 auto; padding: 20px; gap: 20px; }
-        .quiz-area { flex: 7; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .option-label { display: block; padding: 8px 12px; margin: 5px 0; border-radius: 4px; cursor: pointer; transition: background 0.2s; }
-        .option-label:hover { background-color: #f0f4f8; }
-        .option-label:has(input[type="radio"]:checked) { background-color: #e7f3ff; color: #007BFF; font-weight: bold; }
-        .omr-sidebar { flex: 3; background: #333; color: white; padding: 20px; border-radius: 8px; position: sticky; top: 20px; height: 85vh; display: flex; flex-direction: column; }
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-color: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-color: #58a6ff;
+            --success-color: #2ea44f;
+            --danger-color: #f85149;
+            --warning-color: #ff9900;
+            --border-color: #30363d;
+        }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            margin: 0; 
+            padding: 0; 
+            background-color: var(--bg-color); 
+            color: var(--text-color);
+        }
+
+        /* 상단 컨트롤 바 */
+        .control-bar { 
+            background: var(--card-bg); 
+            color: #f0f6fc; 
+            padding: 15px 30px; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid var(--border-color);
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+        .control-bar h2 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+        .session-btns button {
+            background: #21262d;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 16px;
+            font-weight: bold;
+            cursor: pointer;
+            border-radius: 6px;
+            margin-left: 5px;
+            transition: all 0.2s;
+        }
+        .session-btns button:hover, .session-btns button.active {
+            background: var(--accent-color);
+            color: #fff;
+            border-color: var(--accent-color);
+        }
+        .timer-box { 
+            font-size: 1.1rem; 
+            font-weight: bold; 
+            background: rgba(255, 153, 0, 0.1); 
+            color: var(--warning-color);
+            padding: 6px 15px; 
+            border-radius: 6px; 
+            border: 1px solid rgba(255, 153, 0, 0.3);
+        }
+
+        /* 메인 레이아웃 (문제지 + OMR) */
+        .container { display: flex; max-width: 1400px; margin: 0 auto; padding: 20px; gap: 20px; box-sizing: border-box; }
+        
+        /* 왼쪽 문제 영역 */
+        .quiz-area { flex: 7; display: flex; flex-direction: column; gap: 20px; }
+        
+        /* 개별 문제 카드 */
+        .q-box {
+            background: var(--card-bg);
+            border: 1px solid var(--border-color);
+            border-radius: 12px;
+            padding: 25px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            transition: border-color 0.2s;
+        }
+        .q-box h3 {
+            margin-top: 0;
+            margin-bottom: 20px;
+            font-size: 1.15rem;
+            line-height: 1.5;
+            color: #f0f6fc;
+        }
+        .q-subject {
+            color: var(--accent-color);
+            font-size: 0.85rem;
+            background: rgba(88, 166, 255, 0.1);
+            padding: 3px 8px;
+            border-radius: 4px;
+            margin-right: 8px;
+            font-weight: 600;
+        }
+
+        /* 보기 라벨 */
+        .option-label { 
+            display: flex;
+            align-items: center;
+            padding: 12px 16px; 
+            margin: 8px 0; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            background-color: #1f242c;
+            border: 1px solid var(--border-color);
+            transition: all 0.2s; 
+            font-size: 0.95rem;
+        }
+        .option-label:hover { background-color: #262c36; border-color: #444c56; }
+        .option-label input[type="radio"] {
+            margin-right: 12px;
+            width: 18px;
+            height: 18px;
+            accent-color: var(--accent-color);
+        }
+        .option-label.checked-opt { 
+            background-color: rgba(56, 139, 253, 0.1) !important; 
+            color: var(--accent-color); 
+            font-weight: bold; 
+            border-color: var(--accent-color);
+        }
+
+        /* 오른쪽 OMR 사이드바 */
+        .omr-sidebar { 
+            flex: 3; 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color);
+            color: var(--text-color); 
+            padding: 20px; 
+            border-radius: 12px; 
+            position: sticky; 
+            top: 90px; 
+            height: calc(100vh - 130px); 
+            display: flex; 
+            flex-direction: column; 
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        }
         .omr-container { flex: 1; overflow-y: auto; margin-top: 15px; padding-right: 5px; }
-        .omr-row { display: flex; align-items: center; margin-bottom: 8px; background: #444; padding: 5px; border-radius: 4px; }
-        .omr-num { width: 40px; font-weight: bold; text-align: center; color: #ff9900; }
-        .omr-options { display: flex; gap: 10px; }
-        .omr-btn { width: 25px; height: 25px; border-radius: 50%; background: #666; border: none; color: white; font-size: 12px; cursor: pointer; text-align: center; line-height: 25px; padding: 0; }
-        .omr-btn.selected { background-color: #ff9900 !important; color: black !important; font-weight: bold; }
-        .omr-row.incorrect-row { background-color: #ffdddd !important; border: 1px solid #ff3333; }
-        .omr-row.incorrect-row .omr-num { color: #cc0000 !important; }
-        .control-bar { background: #007BFF; color: white; padding: 15px 30px; display: flex; justify-content: space-between; align-items: center; }
-        .timer-box { font-size: 22px; font-weight: bold; background: rgba(0,0,0,0.2); padding: 5px 15px; border-radius: 5px; }
-        .btn-submit { width: 100%; padding: 15px; background: #28a745; color: white; font-size: 18px; font-weight: bold; border: none; border-radius: 5px; cursor: pointer; margin-top: 15px; }
-        .btn-submit:hover { background: #218838; }
-        .result-box { display: none; background: #e9ecef; padding: 25px; margin-bottom: 20px; border-radius: 8px; color: black; border-left: 5px solid #007BFF; }
-        .score-summary { display: flex; gap: 15px; margin: 15px 0; background: white; padding: 15px; border-radius: 5px; flex-wrap: wrap; }
-        .score-item { flex: 1; min-width: 140px; text-align: center; padding: 10px; background: #f8f9fa; border: 1px solid #ddd; border-radius: 4px; }
-        .score-item.gwarak { border-color: red; background: #fff5f5; color: red; }
-        .q-success { border-left: 5px solid #28a745; background-color: #f6fff6; }
-        .q-danger { border-left: 5px solid #dc3545; background-color: #fff6f6; }
-        .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.5); overflow-y: auto; }
-        .modal-content { background-color: white; margin: 5% auto; padding: 30px; width: 70%; max-width: 800px; border-radius: 10px; position: relative; }
-        .close-btn { position: absolute; right: 25px; top: 20px; font-size: 30px; font-weight: bold; color: #aaa; cursor: pointer; }
+        .omr-row { 
+            display: flex; 
+            align-items: center; 
+            margin-bottom: 6px; 
+            background: #1f242c; 
+            padding: 6px; 
+            border-radius: 6px; 
+            border: 1px solid var(--border-color);
+        }
+        .omr-num { width: 45px; font-weight: bold; text-align: center; color: var(--warning-color); font-size: 0.9rem; }
+        .omr-options { display: flex; gap: 8px; }
+        .omr-btn { 
+            width: 26px; 
+            height: 26px; 
+            border-radius: 50%; 
+            background: #30363d; 
+            border: 1px solid var(--border-color); 
+            color: var(--text-color); 
+            font-size: 11px; 
+            cursor: pointer; 
+            text-align: center; 
+            line-height: 24px; 
+            padding: 0; 
+            transition: all 0.1s;
+        }
+        .omr-btn.selected { background-color: var(--warning-color) !important; color: #000 !important; font-weight: bold; border-color: var(--warning-color); }
+        .omr-row.incorrect-row { background-color: rgba(248, 81, 73, 0.1) !important; border-color: var(--danger-color); }
+        .omr-row.incorrect-row .omr-num { color: var(--danger-color) !important; }
+
+        /* 하단 제어 버튼들 */
+        .btn-submit { 
+            width: 100%; 
+            padding: 15px; 
+            background: var(--success-color); 
+            color: white; 
+            font-size: 1.05rem; 
+            font-weight: bold; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            margin-top: 15px; 
+            box-shadow: 0 4px 12px rgba(46, 164, 79, 0.2);
+            transition: background 0.2s;
+        }
+        .btn-submit:hover { background: #2c974b; }
+        .btn-nav-home { margin-top: 10px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; padding: 8px; border-radius: 6px; transition: all 0.2s; }
+        .btn-nav-home:hover { color: var(--text-color); background: #21262d; }
+
+        /* 성적 보고서 영역 */
+        .result-box { 
+            display: none; 
+            background: #1f242c; 
+            padding: 25px; 
+            border-radius: 12px; 
+            color: var(--text-color); 
+            border: 1px solid var(--border-color);
+            border-left: 5px solid var(--accent-color);
+        }
+        .result-title { font-size: 1.4rem; font-weight: bold; margin-bottom: 15px; display: flex; align-items: center; gap: 10px; }
+        .score-summary { display: flex; gap: 12px; margin: 20px 0; flex-wrap: wrap; }
+        .score-item { 
+            flex: 1; 
+            min-width: 130px; 
+            text-align: center; 
+            padding: 12px; 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            border-radius: 8px;
+            font-size: 0.9rem;
+        }
+        .score-item b { display: block; margin-bottom: 5px; color: #f0f6fc; }
+        .score-item.gwarak { border-color: var(--danger-color); background: rgba(248, 81, 73, 0.05); color: var(--danger-color); }
+
+        /* 채점 후 문제 피드백 색상 */
+        .q-box.q-success { border-left: 5px solid var(--success-color); background-color: rgba(46, 164, 79, 0.02); }
+        .q-box.q-danger { border-left: 5px solid var(--danger-color); background-color: rgba(248, 81, 73, 0.02); }
+
+        /* 해설 모달 창 */
+        .modal { display: none; position: fixed; z-index: 9999; left: 0; top: 0; width: 100%; height: 100%; background-color: rgba(0,0,0,0.7); overflow-y: auto; }
+        .modal-content { background-color: var(--card-bg); margin: 5% auto; padding: 30px; width: 80%; max-width: 800px; border-radius: 12px; position: relative; border: 1px solid var(--border-color); }
+        .close-btn { position: absolute; right: 25px; top: 20px; font-size: 30px; font-weight: bold; color: var(--text-muted); cursor: pointer; }
+        .close-btn:hover { color: var(--text-color); }
+
+        /* 스크롤바 커스텀 */
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #30363d; border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: #8b949e; }
     </style>
 </head>
 <body>
 
     <div class="control-bar">
-        <h2>정보처리기사 CBT 실전 시험장 (PostgreSQL 연동)</h2>
-        <div>
-            <button onclick="loadExam(1)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">1회차</button>
-            <button onclick="loadExam(2)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">2회차</button>
-            <button onclick="loadExam(3)" style="padding: 8px 15px; font-weight: bold; cursor: pointer;">3회차</button>
+        <h2>⚔️ Shins 정처기 실전 고사장</h2>
+        <div class="session-btns">
+            <button onclick="loadExam(1)" id="btn-s1">1회차</button>
+            <button onclick="loadExam(2)" id="btn-s2">2회차</button>
+            <button onclick="loadExam(3)" id="btn-s3">3회차</button>
         </div>
         <div id="timer" class="timer-box">남은 시간: 150분 00초</div>
     </div>
@@ -49,28 +245,30 @@
     <div class="container">
         <div class="quiz-area">
             <div id="result-area" class="result-box"></div>
-            <div id="test-area">상단의 회차 버튼을 선택하시면 데이터베이스에서 기출문제를 실시간으로 조회합니다.</div>
+            <div id="test-area" style="text-align: center; padding: 50px 0; color: var(--text-muted); font-size: 1.1rem;">
+                상단의 기출 회차 버튼을 선택하시면 실시간 클라우드 DB에서 100문항을 동적으로 매핑합니다.
+            </div>
         </div>
         
         <div class="omr-sidebar">
-            <h3 style="margin: 0; text-align: center; border-bottom: 1px solid #555; padding-bottom: 10px;">OMR ANSWER SHEET</h3>
+            <h3 style="margin: 0; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; font-size: 1rem; letter-spacing: 1px;">OMR ANSWER SHEET</h3>
             <div id="omr-card-area" class="omr-container"></div>
-            <button class="btn-submit" onclick="submitExam()">답안 제출 (서버 전송)</button>
-            <button onclick="location.href='index.html'" style="margin-top: 10px; background: none; border: 1px solid #aaa; color: #ccc; cursor: pointer; padding: 5px;">메인으로</button>
+            <button class="btn-submit" onclick="submitExam()">🎯 답안 제출 (클라우드 전송)</button>
+            <button class="btn-nav-home" onclick="location.href='index.html'">← 메인 화면으로 이탈</button>
         </div>
     </div>
 
     <div id="explain-modal" class="modal">
         <div class="modal-content">
             <span class="close-btn" onclick="closeModal()">&times;</span>
-            <h2 style="color: #dc3545; border-bottom: 2px solid #dc3545; padding-bottom: 10px;">❌ 오답 해설 및 분석 창 (실시간 DB 기록)</h2>
-            <div id="modal-body" style="max-height: 60vh; overflow-y: auto;"></div>
-            <button onclick="closeModal()" style="width:100%; padding:12px; margin-top:20px; font-weight:bold; background:#333; color:white; border:none; border-radius:5px; cursor:pointer;">확인 후 닫기</button>
+            <h2 style="color: var(--danger-color); border-bottom: 2px solid var(--danger-color); padding-bottom: 12px; margin-top: 0; font-size: 1.4rem;">❌ 오답 해설 및 오답노트 자동 적재 ⚠️</h2>
+            <div id="modal-body" style="max-height: 60vh; overflow-y: auto; padding-right: 10px;"></div>
+            <button onclick="closeModal()" style="width:100%; padding:14px; margin-top:20px; font-weight:bold; background:#30363d; color:white; border:none; border-radius:6px; cursor:pointer; border: 1px solid var(--border-color);">틀린 문항 확인 완료</button>
         </div>
     </div>
 
     <script>
-        // 백엔드 기본 서버 주소 주입
+        // 렌더 백엔드 서버 고유 파이프라인 주소 고정
         const BACKEND_URL = "https://shins-cbt.onrender.com";
 
         let currentQuestions = []; 
@@ -89,26 +287,29 @@
             return `${yy}/${mm}/${dd} ${hh}:${min}`;
         }
 
-        // ★ [변경 기능] 로컬 배열 대신 백엔드 서버에서 100문항을 긁어오는 핵심 비동기 함수
         async function loadExam(sessionNum) {
             currentExamTitle = `${sessionNum}회차 모의고사`;
+            
+            document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active'));
+            const activeBtn = document.getElementById(`btn-s${sessionNum}`);
+            if(activeBtn) activeBtn.classList.add('active');
+
             const testArea = document.getElementById("test-area");
-            testArea.innerHTML = "<h3>🔄 데이터베이스에서 기출문제를 불러오는 중입니다...</h3>";
+            testArea.innerHTML = "<h3 style='text-align:center; color: var(--accent-color);'>🔄 클라우드 인프라에서 전 과목 기출 데이터를 가동 중입니다...</h3>";
 
             try {
-                // 백엔드 API 호출 수행
                 const response = await fetch(`${BACKEND_URL}/api/questions?session=${sessionNum}`);
                 if (!response.ok) throw new Error("네트워크 응답 실패");
                 
                 const data = await response.json();
                 if(data.length === 0) {
-                    testArea.innerHTML = "<h3>⚠️ 해당 회차의 데이터가 DB에 존재하지 않습니다. (2단계 마이그레이션 확인 요망)</h3>";
+                    testArea.innerHTML = "<h3 style='color: var(--danger-color);'>⚠️ 해당 회차의 데이터가 클라우드 DB에 적재되지 않았습니다.</h3>";
                     return;
                 }
                 renderQuestions(data);
             } catch (err) {
                 console.error(err);
-                testArea.innerHTML = "<h3>❌ 백엔드 서버 연결 실패! 터미널에서 'node server.js'가 켜져 있는지 확인하세요.</h3>";
+                testArea.innerHTML = "<h3 style='color: var(--danger-color);'>❌ 클라우드 서버 통신 장애! 렌더 환경변수 세팅 상태를 다시 점검해 주세요.</h3>";
             }
         }
 
@@ -126,18 +327,18 @@
                 const displayNum = index + 1; 
                 const padNum = String(displayNum).padStart(2, '0');
                 
-                quizHtml += `<div id="q-box-${displayNum}" style="margin-bottom: 35px; padding: 15px; border-radius: 6px;">`;
-                quizHtml += `<h3 style="margin-bottom: 15px;">${padNum} [${item.subject}] ${item.question}</h3>`;
+                quizHtml += `<div id="q-box-${displayNum}" class="q-box">`;
+                quizHtml += `<h3><span class="q-subject">${item.subject}</span>${padNum}. ${item.question}</h3>`;
                 
                 item.options.forEach(function(opt, optIdx) {
                     const answerVal = optIdx + 1;
                     quizHtml += `
-                        <label class="option-label">
+                        <label class="option-label" id="label-q-${displayNum}-${answerVal}">
                             <input type="radio" name="group_${displayNum}" value="${answerVal}" onclick="markOMR(${displayNum}, ${answerVal})"> 
                             ${optionSymbols[answerVal]} ${opt}
                         </label>`;
                 });
-                quizHtml += `</div><hr>`;
+                quizHtml += `</div>`;
 
                 omrHtml += `
                     <div class="omr-row" id="omr-row-${displayNum}">
@@ -153,12 +354,22 @@
 
             testArea.innerHTML = quizHtml;
             omrArea.innerHTML = omrHtml;
-            window.scrollTo(0, 0);
+            window.scrollTo({ top: 0, behavior: 'smooth' });
             startTimer();
         }
 
         function markOMR(displayNum, answerVal) {
             userAnswers[displayNum] = answerVal; 
+            
+            // 왼쪽 시험지 선택 클래스 제어
+            for (let i = 1; i <= 4; i++) {
+                const label = document.getElementById(`label-q-${displayNum}-${i}`);
+                if(label) label.classList.remove("checked-opt");
+            }
+            const activeLabel = document.getElementById(`label-q-${displayNum}-${answerVal}`);
+            if(activeLabel) activeLabel.classList.add("checked-opt");
+
+            // 오른쪽 OMR 밍킹 클래스 제어
             for (let i = 1; i <= 4; i++) {
                 document.getElementById(`omr-${displayNum}-${i}`).classList.remove("selected");
             }
@@ -168,6 +379,7 @@
         function jumpToQuestion(displayNum, clickBtnNum) {
             const element = document.getElementById(`q-box-${displayNum}`);
             if(element) element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+            
             const radioButtons = document.getElementsByName(`group_${displayNum}`);
             if(radioButtons.length > 0) {
                 radioButtons[clickBtnNum - 1].checked = true;
@@ -190,7 +402,6 @@
             }, 1000);
         }
 
-        // ★ [변경 기능] 로컬 저장소를 파괴하고 결과를 백엔드 서버 POST 라우터로 넘겨 DB 트랜잭션 적재 유도
         async function submitExam() {
             if(currentQuestions.length === 0) return;
             
@@ -199,7 +410,7 @@
                 if (!userAnswers[index + 1]) hasUnanswered = true;
             });
 
-            if (hasUnanswered && !confirm("아직 풀지 않은 문제가 있습니다. 그래도 제출하시겠습니까?")) return;
+            if (hasUnanswered && !confirm("아직 풀지 않은 빈틈이 존재합니다. 이 상태로 답안을 전송할까요?")) return;
 
             clearInterval(timerInterval); 
 
@@ -226,10 +437,10 @@
                     if(omrRow) omrRow.classList.add("incorrect-row");
 
                     modalHtml += `
-                        <div style="padding:15px; margin-bottom:15px; background:#fff0f0; border-left:4px solid #dc3545; border-radius:4px;">
-                            <h4>❌ ${displayNum}번 [${item.subject}]</h4>
-                            <p style="font-weight:bold;">문제: ${item.question}</p>
-                            <p style="color:#777;">내가 쓴 답: ${userAnswer}번 / <span style="color:#28a745; font-weight:bold;">정답: ${correctAnswer}번</span></p>
+                        <div style="padding:15px; margin-bottom:15px; background: rgba(248, 81, 73, 0.05); border-left:4px solid var(--danger-color); border-radius:8px; border-top: 1px solid var(--border-color); border-right: 1px solid var(--border-color); border-bottom: 1px solid var(--border-color);">
+                            <h4 style="margin-top:0; color: var(--danger-color);">❌ ${displayNum}번 [${item.subject}]</h4>
+                            <p style="font-weight:bold; color: #f0f6fc;">문제: ${item.question}</p>
+                            <p style="color: var(--text-muted); margin-bottom:0;">내가 제출한 답: <span style="color: var(--danger-color); font-weight:bold;">${userAnswer}번</span> / 정답: <span style="color: var(--success-color); font-weight:bold;">${correctAnswer}번</span></p>
                         </div>`;
 
                     folderWrongQuestions.push({
@@ -248,14 +459,14 @@
                 const subScore = subjectScores[sub] * 5; 
                 let isSubGwarak = subScore < 40;
                 if(isSubGwarak) isGwarak = true;
-                gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b><br>${subScore}점 (${subjectScores[sub]}/20)</div>`;
+                gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b>${subScore}점 (${subjectScores[sub]}/20)</div>`;
             }
 
             const isPass = finalScore >= 60 && !isGwarak;
             
-            // 패킷 바구니 조립 후 서버로 POST 네트워크 요청 실시
+            // 💡 고유 폴더명을 'Shin_Secret_Note'로 단일화하여 인덱스 조회 및 마이그레이션 무결성 최적화
             const payload = {
-                folderName: `${getFormattedDate()} 제출`,
+                folderName: "Shin_Secret_Note",
                 examTitle: currentExamTitle,
                 score: finalScore,
                 result: isPass ? "합격" : "불합격",
@@ -269,26 +480,26 @@
                     body: JSON.stringify(payload)
                 });
                 const saveResult = await saveResponse.json();
-                console.log("DB 저장 여부 응답:", saveResult.message);
+                console.log("서버 적재 원격 트랜잭션 메시지:", saveResult.message);
             } catch(e) {
                 console.error("결과 서버 전송 실패:", e);
-                alert("채점 계산은 완료되었으나, 백엔드 서버와 통신이 끊겨 DB 저장에는 실패했습니다.");
+                alert("채점 계산은 완료되었으나, 백엔드 서버 인프라 상태 불안정으로 DB 오답노트 일괄 적재에 실패했습니다.");
             }
 
             const resultArea = document.getElementById("result-area");
             resultArea.style.display = "block";
 
             let summaryHtml = isPass 
-                ? `<span class="pass">🎉 합격입니다! (획득 점수: ${finalScore}점)</span>` 
-                : `<span class="fail">😭 불합격입니다. (획득 점수: ${finalScore}점)</span>`;
+                ? `<div class="result-title" style="color: var(--success-color);">🎉 합격 기준을 충족했습니다! (총점: ${finalScore}점)</div>` 
+                : `<div class="result-title" style="color: var(--danger-color);">😭 불합격 마크 처리되었습니다. (총점: ${finalScore}점)</div>`;
 
-            resultArea.innerHTML = summaryHtml + `<h4>[과목별 상세 점수 획득 현황]</h4><div class="score-summary">${gwarakReportHtml}</div>`;
+            resultArea.innerHTML = summaryHtml + `<h4 style="margin: 20px 0 10px 0; color: #f0f6fc;">[5개 과목별 과락 정밀 분석 현황]</h4><div class="score-summary">${gwarakReportHtml}</div>`;
             
             if(modalHtml !== "") {
                 document.getElementById("modal-body").innerHTML = modalHtml;
                 document.getElementById("explain-modal").style.display = "block";
             }
-            window.scrollTo(0, 0); 
+            window.scrollTo({ top: 0, behavior: 'smooth' }); 
         }
 
         function closeModal() { document.getElementById("explain-modal").style.display = "none"; }

@@ -2,47 +2,151 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <title>나의 오답노트 폴더 관리함 (PostgreSQL 연동)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shins 정처기 - 오답노트 보관함</title>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; margin: 40px; background-color: #f4f6f9; }
-        .wrapper { max-width: 900px; margin: 0 auto; background: white; padding: 30px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        .header-area { display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #333; padding-bottom: 15px; margin-bottom: 20px; }
-        .folder-bar { 
-            background: #eef2f7; border: 1px solid #ced4da; padding: 15px 20px; 
-            margin-bottom: 10px; border-radius: 6px; cursor: pointer; 
-            display: flex; justify-content: space-between; align-items: center;
-            font-size: 16px; font-weight: bold; color: #333; transition: background 0.2s;
+        :root {
+            --bg-color: #0d1117;
+            --card-bg: #161b22;
+            --text-color: #c9d1d9;
+            --text-muted: #8b949e;
+            --accent-color: #58a6ff;
+            --success-color: #2ea44f;
+            --danger-color: #f85149;
+            --warning-color: #ff9900;
+            --border-color: #30363d;
+            --folder-hover: #21262d;
         }
-        .folder-bar:hover { background: #e2e8f0; }
-        .folder-content { display: none; padding: 20px; border: 1px solid #ced4da; border-top: none; margin-top: -10px; margin-bottom: 15px; background: #fafafa; border-radius: 0 0 6px 6px; }
-        .quiz-card { background: white; padding: 15px; border-left: 4px solid #dc3545; border-radius: 4px; margin-bottom: 15px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); }
-        .btn-delete-folder { background: #dc3545; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-size: 13px; }
-        .btn-delete-folder:hover { background: #c0392b; }
-        .btn-home { padding: 10px 20px; background: #007BFF; color: white; text-decoration: none; border-radius: 5px; font-weight: bold; }
-        .empty-msg { text-align: center; color: #777; padding: 40px 0; font-size: 18px; }
-        .badge { display: inline-block; padding: 3px 8px; font-size: 12px; font-weight: bold; color: white; border-radius: 3px; margin-left: 5px; }
-        .badge.pass { background: #28a745; }
-        .badge.fail { background: #dc3545; }
+
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; 
+            margin: 0; 
+            padding: 40px 20px; 
+            background-color: var(--bg-color); 
+            color: var(--text-color);
+        }
+
+        .wrapper { max-width: 900px; margin: 0 auto; }
+        
+        /* 상단 헤더 영역 */
+        .header-area { 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center; 
+            border-bottom: 1px solid var(--border-color); 
+            padding-bottom: 20px; 
+            margin-bottom: 30px; 
+        }
+        .header-area h2 { margin: 0; color: #f0f6fc; font-weight: 700; letter-spacing: -0.5px; }
+        
+        .btn-home { 
+            padding: 10px 20px; 
+            background: #21262d; 
+            color: var(--text-color); 
+            text-decoration: none; 
+            border-radius: 6px; 
+            font-weight: bold; 
+            border: 1px solid var(--border-color);
+            transition: all 0.2s;
+        }
+        .btn-home:hover { background: var(--folder-hover); color: #f0f6fc; }
+
+        /* 아코디언 폴더 바 */
+        .folder-bar { 
+            background: var(--card-bg); 
+            border: 1px solid var(--border-color); 
+            padding: 18px 24px; 
+            margin-bottom: 10px; 
+            border-radius: 8px; 
+            cursor: pointer; 
+            display: flex; 
+            justify-content: space-between; 
+            align-items: center;
+            transition: all 0.2s;
+        }
+        .folder-bar:hover { background: var(--folder-hover); border-color: #444c56; }
+        .folder-info { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; color: #f0f6fc; }
+
+        /* 상태 배지 */
+        .badge { 
+            display: inline-block; 
+            padding: 4px 10px; 
+            font-size: 11px; 
+            font-weight: bold; 
+            color: white; 
+            border-radius: 4px; 
+        }
+        .badge.pass { background: rgba(46, 164, 79, 0.15); color: #56d364; border: 1px solid rgba(46, 164, 79, 0.3); }
+        .badge.fail { background: rgba(248, 81, 73, 0.15); color: #ff7b72; border: 1px solid rgba(248, 81, 73, 0.3); }
+
+        /* 폴더 내부 콘텐츠 구역 */
+        .folder-content { 
+            display: none; 
+            padding: 25px; 
+            border: 1px solid var(--border-color); 
+            border-top: none; 
+            margin-top: -14px; 
+            margin-bottom: 20px; 
+            background: #12161c; 
+            border-radius: 0 0 8px 8px; 
+        }
+
+        /* 내부에 렌더링될 문제 카드 */
+        .quiz-card { 
+            background: var(--card-bg); 
+            padding: 20px; 
+            border-left: 4px solid var(--danger-color); 
+            border-radius: 6px; 
+            margin-bottom: 15px; 
+            border-top: 1px solid var(--border-color);
+            border-right: 1px solid var(--border-color);
+            border-bottom: 1px solid var(--border-color);
+            box-shadow: 0 4px 10px rgba(0,0,0,0.1);
+        }
+        .quiz-card:last-child { margin-bottom: 0; }
+        .quiz-card h4 { margin: 0 0 12px 0; color: var(--accent-color); font-size: 0.95rem; }
+        .quiz-card p.q-text { font-weight: bold; margin-bottom: 16px; color: #f0f6fc; font-size: 1.05rem; line-height: 1.4; }
+        
+        /* 보기 문장 스타일 */
+        .opt-line { margin: 8px 0; padding: 6px 10px; border-radius: 4px; font-size: 0.95rem; color: var(--text-color); }
+
+        /* 폴더 삭제 버튼 */
+        .btn-delete-folder { 
+            background: rgba(248, 81, 73, 0.1); 
+            color: var(--danger-color); 
+            border: 1px solid rgba(248, 81, 73, 0.2); 
+            padding: 6px 14px; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-size: 0.85rem; 
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-delete-folder:hover { background: var(--danger-color); color: white; border-color: var(--danger-color); }
+        
+        .empty-msg { text-align: center; color: var(--text-muted); padding: 50px 0; font-size: 1.1rem; line-height: 1.6; }
     </style>
 </head>
 <body>
 
     <div class="wrapper">
         <div class="header-area">
-            <h2>📁 DB 폴더별 오답노트 보관함</h2>
+            <h2>📁 오답노트 폴더 보관함</h2>
             <div>
-                <a href="index.html" class="btn-home">메인 화면으로</a>
+                <a href="index.html" class="btn-home">← 메인으로 이탈</a>
             </div>
         </div>
 
-        <div id="folder-list-area">🔄 데이터베이스에서 오답노트 기록 폴더들을 로드 중입니다...</div>
+        <div id="folder-list-area">
+            <p style="text-align: center; color: var(--accent-color);">🔄 클라우드 인프라에서 오답노트 폴더 트리 구조를 빌드하는 중...</p>
+        </div>
     </div>
 
     <script>
+        // ⚠️ [주소 확인] 본인의 실제 Render 주소로 기입해 두세요!
         const BACKEND_URL = "https://shins-cbt.onrender.com";
         const optionSymbols = ["", "①", "②", "③", "④"];
 
-        // ★ [기능 변경] 서버 API로부터 조인 결과물 배열을 받아 아코디언 컴포넌트로 렌더링
         async function displayFolders() {
             const listArea = document.getElementById("folder-list-area");
 
@@ -51,7 +155,11 @@
                 const folderHistory = await response.json();
 
                 if (folderHistory.length === 0) {
-                    listArea.innerHTML = `<p class="empty-msg">보관된 오답 기록 폴더가 PostgreSQL DB에 존재하지 않습니다.<br>시험장에서 모의고사를 치르면 실시간으로 누적됩니다.</p>`;
+                    listArea.innerHTML = `
+                        <p class="empty-msg">
+                            보관된 오답 기록 폴더가 원격 DB에 존재하지 않습니다.<br>
+                            <span style="font-size:0.9rem; color:var(--text-muted);">시험장에서 모의고사를 치르면 실시간 트랜잭션으로 폴더가 누적됩니다.</span>
+                        </p>`;
                     return;
                 }
 
@@ -62,10 +170,12 @@
                     
                     htmlContent += `
                         <div class="folder-bar" onclick="toggleFolder(${folder.id})">
-                            <div>
-                                📂 [${folder.examTitle}] ${folder.folderName} 
+                            <div class="folder-info">
+                                <span style="font-size: 1.1rem;">📂</span> 
+                                <span>[${folder.examTitle}]</span> 
+                                <span style="color: var(--text-muted); font-weight: normal;">${folder.folderName}</span>
                                 <span class="badge ${badgeClass}">${folder.result} (${folder.score}점)</span>
-                                <span style="font-size:13px; color:#666; margin-left:10px;">(틀린 문항 수: ${folder.questions.length}개)</span>
+                                <span style="font-size:12px; color: var(--text-muted); font-weight: normal; margin-left:5px;">(틀린 문항: ${folder.questions.length}개)</span>
                             </div>
                             <button class="btn-delete-folder" onclick="deleteFolder(${folder.id}, event)">폴더 삭제</button>
                         </div>
@@ -75,8 +185,8 @@
                     folder.questions.forEach(function(q) {
                         htmlContent += `
                             <div class="quiz-card">
-                                <h4 style="margin: 0 0 10px 0; color:#333;">No.${q.number} [${q.subject}]</h4>
-                                <p style="font-weight:bold; margin-bottom:12px;">Q. ${q.question}</p>`;
+                                <h4>No.${q.number} <span style="color:var(--text-muted); font-size:0.8rem; margin-left:6px;">[${q.subject}]</span></h4>
+                                <p class="q-text">Q. ${q.question}</p>`;
                         
                         q.options.forEach(function(opt, optIdx) {
                             const idxNum = optIdx + 1;
@@ -87,14 +197,14 @@
                             let checkMark = "";
                             
                             if(isCorrect) {
-                                optionStyle = "color:#28a745; font-weight:bold;";
-                                checkMark = " ✔️ (정답)";
+                                optionStyle = "background: rgba(46, 164, 79, 0.1); color: #56d364; font-weight: bold; border-left: 3px solid var(--success-color);";
+                                checkMark = " <span style='font-size:12px; margin-left:6px;'>✔️ (정답)</span>";
                             } else if(isUserCheck) {
-                                optionStyle = "color:#dc3545; text-decoration:line-through;";
-                                checkMark = " ❌ (내가 쓴 오답)";
+                                optionStyle = "background: rgba(248, 81, 73, 0.08); color: #ff7b72; text-decoration: line-through; border-left: 3px solid var(--danger-color);";
+                                checkMark = " <span style='font-size:12px; margin-left:6px;'>❌ (내가 제출한 오답)</span>";
                             }
 
-                            htmlContent += `<p style="margin:6px 0; ${optionStyle}">${optionSymbols[idxNum]} ${opt}${checkMark}</p>`;
+                            htmlContent += `<div class="opt-line" style="${optionStyle}">${optionSymbols[idxNum]} ${opt}${checkMark}</div>`;
                         });
 
                         htmlContent += `</div>`;
@@ -107,31 +217,32 @@
 
             } catch(e) {
                 console.error(e);
-                listArea.innerHTML = `<p class="empty-msg" style="color:red;">❌ 백엔드 통신 오류로 인해 DB 기록 폴더를 로드할 수 없습니다.</p>`;
+                listArea.innerHTML = `<p class="empty-msg" style="color:var(--danger-color);">❌ 클라우드 통신 실패! 백엔드 서버 파이프라인 연동 상태를 확인해 주세요.</p>`;
             }
         }
 
         function toggleFolder(folderId) {
             const contentBox = document.getElementById(`content-${folderId}`);
-            contentBox.style.display = (contentBox.style.display === "block") ? "none" : "block";
+            if(contentBox) {
+                contentBox.style.display = (contentBox.style.display === "block") ? "none" : "block";
+            }
         }
 
-        // ★ [기능 변경] 삭제 클릭 시 서버의 DELETE 라우터로 쿼리를 전달하여 CASCADE 연쇄 삭제 수행
         async function deleteFolder(folderId, event) {
             event.stopPropagation(); 
             
-            if (confirm("해당 시험 회차의 폴더 기록과 오답 목록을 PostgreSQL 데이터베이스에서 영구 삭제하시겠습니까?")) {
+            if (confirm("해당 시험 회차의 폴더 기록과 오답 목록을 PostgreSQL 데이터베이스에서 완전히 삭제하시겠습니까?")) {
                 try {
                     const response = await fetch(`${BACKEND_URL}/api/histories/${folderId}`, {
                         method: 'DELETE'
                     });
                     const resData = await response.json();
                     if(resData.success) {
-                        displayFolders(); // 성공 시 리스트 동적 리로드
+                        displayFolders(); 
                     }
                 } catch(err) {
                     console.error("삭제 실패:", err);
-                    alert("서버 통신 실패로 삭제 작업을 완료하지 못했습니다.");
+                    alert("서버 연결 실패로 인해 레코드 연쇄 삭제(CASCADE)를 수행하지 못했습니다.");
                 }
             }
         }
