@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
+const pdf = require('pdf-parse'); // 💡 상단 선언부 유지
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -267,9 +268,15 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        // 💡 [원인 전면 차단] 상단 전역 스코프 참조를 끊고 가동 시점에 모듈을 인라인으로 직접 바인딩하여 실행
-        const pdfParserEngine = require('pdf-parse');
-        const pdfData = await pdfParserEngine(req.file.buffer);
+        // 💡 [무적의 방어 매커니즘 바인딩] require의 결과 객체를 정밀 해체하여 함수 알맹이를 강제 발라냅니다.
+        const rawModule = require('pdf-parse');
+        const actualParser = typeof rawModule === 'function' ? rawModule : (rawModule.default || rawModule.pdf || rawModule.parse);
+        
+        if (typeof actualParser !== 'function') {
+            throw new Error("pdf-parse 패키지에서 가동 가능한 파싱 함수 인터페이스를 추적하지 못했습니다.");
+        }
+
+        const pdfData = await actualParser(req.file.buffer);
         const rawText = pdfData.text.trim();
 
         if (!rawText || rawText.length < 150) {
