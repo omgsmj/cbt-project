@@ -39,16 +39,25 @@
         .header-area h2 { margin: 0; color: #f0f6fc; font-weight: 700; letter-spacing: -0.5px; }
         
         .btn-home { 
-            padding: 10px 20px; 
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 10px 16px; 
             background: #21262d; 
             color: var(--text-color); 
             text-decoration: none; 
             border-radius: 6px; 
             font-weight: bold; 
             border: 1px solid var(--border-color);
-            transition: all 0.2s;
+            font-size: 0.9rem;
+            transition: all 0.2s ease-in-out;
         }
-        .btn-home:hover { background: var(--folder-hover); color: #f0f6fc; }
+        .btn-home:hover { 
+            background: var(--folder-hover); 
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+            box-shadow: 0 0 10px rgba(88, 166, 255, 0.15);
+        }
 
         .folder-bar { 
             background: var(--card-bg); 
@@ -104,7 +113,6 @@
         
         .opt-line { margin: 8px 0; padding: 6px 10px; border-radius: 4px; font-size: 0.95rem; color: var(--text-color); }
 
-        /* 제어 버튼 그룹 */
         .btn-group { display: flex; gap: 10px; margin-top: 12px; }
 
         .btn-explain-toggle {
@@ -120,7 +128,6 @@
         }
         .btn-explain-toggle:hover { background: #30363d; color: #f0f6fc; }
         
-        /* AI 버튼 전용 형광 포인트 세팅 */
         .btn-ai-explain {
             background: rgba(88, 166, 255, 0.1);
             color: var(--accent-color);
@@ -135,7 +142,7 @@
         .explain-wrapper {
             display: none;
             margin-top: 12px;
-            padding: 15px;
+            padding: 18px;
             background: #1f242c;
             border-radius: 6px;
             border: 1px solid var(--border-color);
@@ -144,6 +151,10 @@
             color: #e6edf2;
             white-space: pre-wrap;
         }
+
+        /* 💡 마크다운 전용 렌더링 스타일 추가 */
+        .explain-wrapper strong { color: #ff9900; }
+        .explain-wrapper h3 { color: #f0f6fc; border-bottom: 1px solid #30363d; padding-bottom: 4px; margin-top: 15px; }
 
         .btn-delete-folder { 
             background: rgba(248, 81, 73, 0.1); 
@@ -167,7 +178,7 @@
         <div class="header-area">
             <h2>📁 나의 오답노트 폴더 관리함</h2>
             <div>
-                <a href="index.html" class="btn-home">← 메인으로 이탈</a>
+                <a href="index.html" class="btn-home">🏠 홈 화면으로 복귀</a>
             </div>
         </div>
 
@@ -177,9 +188,18 @@
     </div>
 
     <script>
-        // ⚠️ [주소 확인] 본인의 실제 Render 주소로 기입해 두세요!
         const BACKEND_URL = "https://shins-cbt.onrender.com";
         const optionSymbols = ["", "①", "②", "③", "④"];
+
+        // 💡 Gemini 마크다운 찌꺼기 정제 엔진 함수 탑재
+        function parseMarkdown(text) {
+            if (!text) return "";
+            let html = text
+                .replace(/### (.*?)\n/g, '<h3>$1</h3>')
+                .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+                .replace(/\*(.*?)\*/g, '<em>$1</em>');
+            return html;
+        }
 
         async function displayFolders() {
             const listArea = document.getElementById("folder-list-area");
@@ -220,7 +240,6 @@
                         const uniqueId = `explain-${folder.id}-${qIdx}`;
                         const aiUniqueId = `ai-explain-${folder.id}-${qIdx}`;
                         
-                        // 문자열 특수문자 깨짐을 완벽 방지하기 위한 가상 인코딩 처리 후 주입
                         const stringifiedQ = encodeURIComponent(JSON.stringify(q));
 
                         htmlContent += `
@@ -249,7 +268,6 @@
 
                         const expText = q.explanation ? q.explanation : "해당 문항의 해설 텍스트 데이터가 비어있습니다.";
                         
-                        // 기본 서적 해설 스위치와 AI 튜터링 스위치를 듀얼 배치
                         htmlContent += `
                             <div class="btn-group">
                                 <button class="btn-explain-toggle" onclick="toggleExplanation('${uniqueId}', event)">💡 정답 해설 서적 보기</button>
@@ -286,14 +304,12 @@
             }
         }
 
-        // 🤖 실시간 원격 AI 튜터링 통신 파이프라인 함수
         async function askGeminiAI(btnId, aiBoxId, encodedQ, event) {
             event.stopPropagation();
             const aiBox = document.getElementById(aiBoxId);
             const btn = document.getElementById(`btn-ai-node-${btnId}`);
             const qDataObject = JSON.parse(decodeURIComponent(encodedQ));
 
-            // 이미 AI 데이터를 한 번 불러왔다면 통신 생략하고 토글만 처리
             if (aiBox.innerHTML !== "" && aiBox.style.display !== "block") {
                 aiBox.style.display = "block";
                 return;
@@ -321,7 +337,8 @@
                 const resData = await response.json();
                 if (resData.explanation) {
                     btn.innerText = "🤖 AI 과외 상자 접기";
-                    aiBox.innerHTML = resData.explanation;
+                    // 💡 정제 엔진(parseMarkdown)을 거쳐 HTML을 밀어넣도록 버그 수정 완료
+                    aiBox.innerHTML = parseMarkdown(resData.explanation);
                 } else {
                     aiBox.innerHTML = `<span style="color: var(--danger-color);">❌ AI 해설 응답 패킷이 비어있습니다.</span>`;
                 }
