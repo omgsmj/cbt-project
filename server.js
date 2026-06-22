@@ -5,7 +5,6 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
-const pdf = require('pdf-parse'); // 💡 상단 선언부: pdf 이름으로 모듈 바인딩
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -268,19 +267,9 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        // 💡 [무적의 방어 로직 우회 적용] 모듈 배포 환경에 따라 달라지는 내보내기 4단계 정밀 스크리닝
-        let parseEngine;
-        if (typeof pdf === 'function') {
-            parseEngine = pdf;
-        } else if (pdf && typeof pdf.default === 'function') {
-            parseEngine = pdf.default;
-        } else if (pdf && typeof pdf.pdf === 'function') {
-            parseEngine = pdf.pdf;
-        } else {
-            parseEngine = require('pdf-parse');
-        }
-
-        const pdfData = await parseEngine(req.file.buffer);
+        // 💡 [원인 전면 차단] 상단 전역 스코프 참조를 끊고 가동 시점에 모듈을 인라인으로 직접 바인딩하여 실행
+        const pdfParserEngine = require('pdf-parse');
+        const pdfData = await pdfParserEngine(req.file.buffer);
         const rawText = pdfData.text.trim();
 
         if (!rawText || rawText.length < 150) {
