@@ -84,6 +84,27 @@
             border: 1px solid rgba(255, 153, 0, 0.3);
         }
 
+        /* 🏠 상단 네비게이션 복귀 버튼 세팅 */
+        .btn-top-home {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 8px 14px;
+            background: #21262d;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            border-radius: 6px;
+            font-weight: bold;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .btn-top-home:hover {
+            background: #30363d;
+            color: var(--accent-color);
+            border-color: var(--accent-color);
+        }
+
         /* 메인 레이아웃 (문제지 + OMR) */
         .container { display: flex; max-width: 1400px; margin: 0 auto; padding: 20px; gap: 20px; box-sizing: border-box; }
         
@@ -204,8 +225,20 @@
             transition: background 0.2s;
         }
         .btn-submit:hover { background: #2c974b; }
-        .btn-nav-home { margin-top: 10px; background: transparent; border: 1px solid var(--border-color); color: var(--text-muted); cursor: pointer; padding: 8px; border-radius: 6px; transition: all 0.2s; }
-        .btn-nav-home:hover { color: var(--text-color); background: #21262d; }
+        
+        .btn-nav-home { 
+            margin-top: 10px; 
+            background: transparent; 
+            border: 1px solid var(--border-color); 
+            color: var(--text-muted); 
+            cursor: pointer; 
+            padding: 10px; 
+            border-radius: 6px; 
+            transition: all 0.2s; 
+            font-weight: bold;
+            font-size: 0.9rem;
+        }
+        .btn-nav-home:hover { color: var(--accent-color); border-color: var(--accent-color); background: #21262d; }
 
         /* 성적 보고서 영역 */
         .result-box { 
@@ -270,6 +303,7 @@
             </select>
         </div>
         <div id="timer" class="timer-box">남은 시간: 150분 00초</div>
+        <button class="btn-top-home" onclick="confirmGoHome()">🏠 홈으로 이동</button>
     </div>
 
     <div class="container">
@@ -284,7 +318,7 @@
             <h3 style="margin: 0; text-align: center; border-bottom: 1px solid var(--border-color); padding-bottom: 12px; font-size: 1rem; letter-spacing: 1px;">OMR ANSWER SHEET</h3>
             <div id="omr-card-area" class="omr-container"></div>
             <button class="btn-submit" onclick="submitExam()">🎯 답안 제출 (클라우드 전송)</button>
-            <button class="btn-nav-home" onclick="location.href='index.html'">← 메인 화면으로 이탈</button>
+            <button class="btn-nav-home" onclick="confirmGoHome()">🏠 메인 화면으로 복귀</button>
         </div>
     </div>
 
@@ -298,15 +332,25 @@
     </div>
 
     <script>
-        // ⚠️ 본인의 실제 Render 백엔드 도메인 주소로 교체해서 push 하세요!
         const BACKEND_URL = "https://shins-cbt.onrender.com";
 
         let currentQuestions = []; 
         let userAnswers = {};      
         let timerInterval;
         let currentExamTitle = ""; 
-        let selectedSession = null; // 현재 어떤 회차가 눌려있는지 기억하는 변수
+        let selectedSession = null; 
         const optionSymbols = ["", "①", "②", "③", "④"];
+
+        // 💡 실시간 모의고사 안전 이탈 조율 컨펌 로직 구현
+        function confirmGoHome() {
+            if (currentQuestions.length > 0) {
+                if (confirm("정말 시험을 종료하고 홈 화면으로 이동하시겠습니까?\n(현재 풀던 마킹 기록은 완벽히 휘발됩니다.)")) {
+                    window.location.href = "index.html";
+                }
+            } else {
+                window.location.href = "index.html";
+            }
+        }
 
         function getFormattedDate() {
             const now = new Date();
@@ -318,21 +362,17 @@
             return `${yy}/${mm}/${dd} ${hh}:${min}`;
         }
 
-        // 회차 버튼 클릭 시 가동
         function selectSession(sessionNum) {
             selectedSession = sessionNum;
             document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active'));
             const activeBtn = document.getElementById(`btn-s${sessionNum}`);
             if(activeBtn) activeBtn.classList.add('active');
 
-            // 회차를 새로 고르면 과목 필터도 '전체 과목 보기' 상태를 기반으로 리로드
             const currentSubject = document.getElementById("subject-picker").value;
             loadFilteredExam(currentSubject);
         }
 
-        // 복합 필터링 분기 처리 핵심 엔진
         async function loadFilteredExam(subjectName) {
-            // 회차가 안 고른 상태에서 과목을 고르면 안내 팝업 후 1회차로 강제 지정
             if (selectedSession === null) {
                 alert("기준이 될 회차(1~3회차)를 먼저 클릭한 후 과목을 필터링해 주세요!");
                 document.getElementById("subject-picker").value = "";
@@ -344,11 +384,9 @@
             if(subjectName === "pro") querySubject = "프로그래밍언어활용";
 
             if (!querySubject) {
-                // '전체 과목 보기'를 선택한 경우 ➔ 해당 회차 100문제 로드
                 currentExamTitle = `${selectedSession}회차 모의고사`;
                 url = `${BACKEND_URL}/api/questions?session=${selectedSession}`;
             } else {
-                // 특정 과목을 선택한 경우 ➔ 해당 회차 + 해당 과목 복합 쿼리 가동 (20문제)
                 currentExamTitle = `${selectedSession}회차 - ${querySubject} 마스터`;
                 url = `${BACKEND_URL}/api/questions/subject?subject=${encodeURIComponent(querySubject)}&session=${selectedSession}`;
             }
@@ -517,11 +555,10 @@
             let gwarakReportHtml = "";
             
             for (const sub in subjectScores) {
-                // 문항 수가 100문제가 아니라 특정 과목 20문제 스크리닝일 때의 점수 왜곡 방지를 위해 유연한 수식 처리
                 const subTotalCount = currentQuestions.filter(q => q.subject === sub).length || 20;
                 const subScore = Math.round((subjectScores[sub] / subTotalCount) * 100);
                 let isSubGwarak = subScore < 40;
-                if(isSubGwarak && currentQuestions.length === 100) isGwarak = true; // 100문항 풀 때만 과락 적용
+                if(isSubGwarak && currentQuestions.length === 100) isGwarak = true; 
                 gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b>${subScore}점 (${subjectScores[sub]}/${subTotalCount})</div>`;
             }
 
