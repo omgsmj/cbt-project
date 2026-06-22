@@ -24,7 +24,7 @@
         h2 { color: #f0f6fc; margin-top: 0; text-align: center; border-bottom: 1px solid #30363d; padding-bottom: 15px; }
         .form-group { margin-bottom: 20px; }
         label { display: block; font-weight: bold; margin-bottom: 8px; color: #8b949e; font-size: 0.9rem; }
-        input[type="file"], input[type="password"], select {
+        input[type="file"], input[type="password"], input[type="text"], select {
             width: 100%;
             padding: 12px;
             background: #21262d;
@@ -35,6 +35,19 @@
             font-size: 0.95rem;
         }
         input:focus, select:focus { border-color: #58a6ff; outline: none; }
+        
+        /* 💡 직접 입력창을 위한 부드러운 애니메이션 효과 스타일 */
+        .custom-input-box {
+            display: none;
+            margin-top: 10px;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(-5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
         .btn-submit {
             width: 100%;
             padding: 14px;
@@ -75,11 +88,16 @@
     
     <div class="form-group">
         <label>🎯 저장할 시험 회차 명칭</label>
-        <select id="sessionName">
+        <select id="sessionSelect" onchange="handleSessionChange()">
             <option value="2026년 제4회차 기출">2026년 제4회차 기출</option>
             <option value="2026년 제5회차 기출">2026년 제5회차 기출</option>
             <option value="2027년 제1회차 기출">2027년 제1회차 기출</option>
+            <option value="custom">✏️ 직접 입력하기...</option>
         </select>
+        
+        <div class="custom-input-box" id="customInputWrapper">
+            <input type="text" id="customSessionName" placeholder="예: 2026년 4회차 복원모의">
+        </div>
     </div>
 
     <div class="form-group">
@@ -89,7 +107,7 @@
 
     <div class="form-group">
         <label>🔑 관리자 마스터 보안 패스워드</label>
-        <input type="password" id="adminPassword" placeholder="ShinPass2026 형식의 비밀번호 기입">
+        <input type="password" id="adminPassword" placeholder="관리자 비밀번호 입력">
     </div>
 
     <button class="btn-submit" onclick="executeUpload()">⚡ 대용량 AI 분석 및 DB 연쇄 적재 가동</button>
@@ -98,14 +116,39 @@
 </div>
 
 <script>
-    // ⚠️ 본인의 실제 Render 주소로 기입해 두세요! (끝에 /는 제외)
     const BACKEND_URL = "https://shins-cbt.onrender.com";
 
+    // 💡 선택 박스 변경 감지 핸들러
+    function handleSessionChange() {
+        const selectElement = document.getElementById('sessionSelect');
+        const customWrapper = document.getElementById('customInputWrapper');
+        const customInput = document.getElementById('customSessionName');
+
+        if (selectElement.value === 'custom') {
+            customWrapper.style.display = 'block';
+            customInput.focus();
+        } else {
+            customWrapper.style.display = 'none';
+            customInput.value = ''; // 초기화
+        }
+    }
+
     async function executeUpload() {
-        const sessionName = document.getElementById('sessionName').value;
+        const selectValue = document.getElementById('sessionSelect').value;
+        const customValue = document.getElementById('customSessionName').value.trim();
         const pdfFile = document.getElementById('pdfFile').files[0];
         const adminPassword = document.getElementById('adminPassword').value;
         const statusBox = document.getElementById('statusBox');
+
+        // 💡 선택된 값에 따라 전송할 최종 회차 명칭 스위칭 조율
+        let finalSessionName = selectValue;
+        if (selectValue === 'custom') {
+            if (!customValue) {
+                alert("직접 입력할 회차 명칭을 기재해 주세요.");
+                return;
+            }
+            finalSessionName = customValue;
+        }
 
         if (!pdfFile || !adminPassword) {
             alert("파일과 보안 패스워드는 필수 기입 요소입니다.");
@@ -113,7 +156,7 @@
         }
 
         const formData = new FormData();
-        formData.append("sessionName", sessionName);
+        formData.append("sessionName", finalSessionName); // 최종 확정된 텍스트 수납
         formData.append("pdfFile", pdfFile);
         formData.append("adminPassword", adminPassword);
 
