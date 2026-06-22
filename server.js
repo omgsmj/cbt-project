@@ -268,8 +268,18 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        // 💡 런타임 객체 판별 처리로 'not a function' 에러 전면 봉쇄
-        const parseEngine = (typeof pdf === 'function') ? pdf : (pdf.default || pdf);
+        // 💡 [무적의 방어 로직 우회 적용] 모듈 배포 환경에 따라 달라지는 내보내기 4단계 정밀 스크리닝
+        let parseEngine;
+        if (typeof pdf === 'function') {
+            parseEngine = pdf;
+        } else if (pdf && typeof pdf.default === 'function') {
+            parseEngine = pdf.default;
+        } else if (pdf && typeof pdf.pdf === 'function') {
+            parseEngine = pdf.pdf;
+        } else {
+            parseEngine = require('pdf-parse');
+        }
+
         const pdfData = await parseEngine(req.file.buffer);
         const rawText = pdfData.text.trim();
 
