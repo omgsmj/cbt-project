@@ -28,7 +28,6 @@
 
         .wrapper { max-width: 900px; margin: 0 auto; }
         
-        /* 상단 헤더 영역 */
         .header-area { 
             display: flex; 
             justify-content: space-between; 
@@ -51,7 +50,6 @@
         }
         .btn-home:hover { background: var(--folder-hover); color: #f0f6fc; }
 
-        /* 아코디언 폴더 바 */
         .folder-bar { 
             background: var(--card-bg); 
             border: 1px solid var(--border-color); 
@@ -67,7 +65,6 @@
         .folder-bar:hover { background: var(--folder-hover); border-color: #444c56; }
         .folder-info { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; font-weight: 600; color: #f0f6fc; }
 
-        /* 상태 배지 */
         .badge { 
             display: inline-block; 
             padding: 4px 10px; 
@@ -79,7 +76,6 @@
         .badge.pass { background: rgba(46, 164, 79, 0.15); color: #56d364; border: 1px solid rgba(46, 164, 79, 0.3); }
         .badge.fail { background: rgba(248, 81, 73, 0.15); color: #ff7b72; border: 1px solid rgba(248, 81, 73, 0.3); }
 
-        /* 폴더 내부 콘텐츠 구역 */
         .folder-content { 
             display: none; 
             padding: 25px; 
@@ -91,7 +87,6 @@
             border-radius: 0 0 8px 8px; 
         }
 
-        /* 내부에 렌더링될 문제 카드 */
         .quiz-card { 
             background: var(--card-bg); 
             padding: 20px; 
@@ -107,10 +102,11 @@
         .quiz-card h4 { margin: 0 0 12px 0; color: var(--accent-color); font-size: 0.95rem; }
         .quiz-card p.q-text { font-weight: bold; margin-bottom: 16px; color: #f0f6fc; font-size: 1.05rem; line-height: 1.4; }
         
-        /* 보기 문장 스타일 */
         .opt-line { margin: 8px 0; padding: 6px 10px; border-radius: 4px; font-size: 0.95rem; color: var(--text-color); }
 
-        /* 해설 영역 스타일 */
+        /* 제어 버튼 그룹 */
+        .btn-group { display: flex; gap: 10px; margin-top: 12px; }
+
         .btn-explain-toggle {
             background: #21262d;
             color: var(--text-color);
@@ -119,11 +115,22 @@
             font-size: 0.85rem;
             border-radius: 4px;
             cursor: pointer;
-            margin-top: 12px;
             font-weight: 600;
             transition: all 0.2s;
         }
         .btn-explain-toggle:hover { background: #30363d; color: #f0f6fc; }
+        
+        /* AI 버튼 전용 형광 포인트 세팅 */
+        .btn-ai-explain {
+            background: rgba(88, 166, 255, 0.1);
+            color: var(--accent-color);
+            border: 1px solid rgba(88, 166, 255, 0.3);
+        }
+        .btn-ai-explain:hover {
+            background: var(--accent-color);
+            color: #000;
+            box-shadow: 0 0 12px rgba(88, 166, 255, 0.4);
+        }
         
         .explain-wrapper {
             display: none;
@@ -135,10 +142,9 @@
             font-size: 0.95rem;
             line-height: 1.6;
             color: #e6edf2;
-            white-space: pre-wrap; /* 줄바꿈 기호 온전히 보존 */
+            white-space: pre-wrap;
         }
 
-        /* 폴더 삭제 버튼 */
         .btn-delete-folder { 
             background: rgba(248, 81, 73, 0.1); 
             color: var(--danger-color); 
@@ -212,6 +218,11 @@
 
                     folder.questions.forEach(function(q, qIdx) {
                         const uniqueId = `explain-${folder.id}-${qIdx}`;
+                        const aiUniqueId = `ai-explain-${folder.id}-${qIdx}`;
+                        
+                        // 문자열 특수문자 깨짐을 완벽 방지하기 위한 가상 인코딩 처리 후 주입
+                        const stringifiedQ = encodeURIComponent(JSON.stringify(q));
+
                         htmlContent += `
                             <div class="quiz-card">
                                 <h4>No.${q.number} <span style="color:var(--text-muted); font-size:0.8rem; margin-left:6px;">[${q.subject}]</span></h4>
@@ -236,11 +247,16 @@
                             htmlContent += `<div class="opt-line" style="${optionStyle}">${optionSymbols[idxNum]} ${opt}${checkMark}</div>`;
                         });
 
-                        // 💡 해설 데이터가 존재할 경우 아코디언 토글 레이아웃 주입
                         const expText = q.explanation ? q.explanation : "해당 문항의 해설 텍스트 데이터가 비어있습니다.";
+                        
+                        // 기본 서적 해설 스위치와 AI 튜터링 스위치를 듀얼 배치
                         htmlContent += `
-                            <button class="btn-explain-toggle" onclick="toggleExplanation('${uniqueId}', event)">💡 정답 및 오답피하기 해설 보기</button>
+                            <div class="btn-group">
+                                <button class="btn-explain-toggle" onclick="toggleExplanation('${uniqueId}', event)">💡 정답 해설 서적 보기</button>
+                                <button class="btn-explain-toggle btn-ai-explain" id="btn-ai-node-${uniqueId}" onclick="askGeminiAI('${uniqueId}', '${aiUniqueId}', '${stringifiedQ}', event)">🤖 AI 1:1 족집게 과외 받기</button>
+                            </div>
                             <div class="explain-wrapper" id="${uniqueId}">${expText}</div>
+                            <div class="explain-wrapper" style="border-color: var(--accent-color); background: #0f141c;" id="${aiUniqueId}"></div>
                         </div>`;
                     });
 
@@ -262,7 +278,6 @@
             }
         }
 
-        // 해설 상자 열고 닫는 토글 함수 (폴더 아코디언 버블링 방지 포함)
         function toggleExplanation(elementId, event) {
             event.stopPropagation();
             const expBox = document.getElementById(elementId);
@@ -271,21 +286,60 @@
             }
         }
 
+        // 🤖 실시간 원격 AI 튜터링 통신 파이프라인 함수
+        async function askGeminiAI(btnId, aiBoxId, encodedQ, event) {
+            event.stopPropagation();
+            const aiBox = document.getElementById(aiBoxId);
+            const btn = document.getElementById(`btn-ai-node-${btnId}`);
+            const qDataObject = JSON.parse(decodeURIComponent(encodedQ));
+
+            // 이미 AI 데이터를 한 번 불러왔다면 통신 생략하고 토글만 처리
+            if (aiBox.innerHTML !== "" && aiBox.style.display !== "block") {
+                aiBox.style.display = "block";
+                return;
+            } else if (aiBox.style.display === "block") {
+                aiBox.style.display = "none";
+                return;
+            }
+
+            btn.innerText = "⚡ AI 분석 노트 생성 중...";
+            aiBox.innerHTML = `<span style="color: var(--accent-color);">⚡ Shins AI가 보기 문항과 핵심 키워드를 교차 대조하는 중입니다. 잠시만 기다려 주세요...</span>`;
+            aiBox.style.display = "block";
+
+            try {
+                const response = await fetch(`${BACKEND_URL}/api/explain-ai`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        question: qDataObject.question,
+                        options: qDataObject.options,
+                        subject: qDataObject.subject,
+                        number: qDataObject.number
+                    })
+                });
+                
+                const resData = await response.json();
+                if (resData.explanation) {
+                    btn.innerText = "🤖 AI 과외 상자 접기";
+                    aiBox.innerHTML = resData.explanation;
+                } else {
+                    aiBox.innerHTML = `<span style="color: var(--danger-color);">❌ AI 해설 응답 패킷이 비어있습니다.</span>`;
+                }
+            } catch (err) {
+                console.error(err);
+                aiBox.innerHTML = `<span style="color: var(--danger-color);">❌ 백엔드 AI 허브 연동 실패. 렌더 대시보드 환경변수(GEMINI_API_KEY)를 확인하세요.</span>`;
+            }
+        }
+
         async function deleteFolder(folderId, event) {
             event.stopPropagation(); 
-            
-            if (confirm("해당 시험 회차의 폴더 기록과 오답 목록을 PostgreSQL 데이터베이스에서 완전히 삭제하시겠습니까?")) {
+            if (confirm("해당 시험 회차의 폴더 기록과 오답 목록을 데이터베이스에서 완전히 삭제하시겠습니까?")) {
                 try {
-                    const response = await fetch(`${BACKEND_URL}/api/histories/${folderId}`, {
-                        method: 'DELETE'
-                    });
+                    const response = await fetch(`${BACKEND_URL}/api/histories/${folderId}`, { method: 'DELETE' });
                     const resData = await response.json();
-                    if(resData.success) {
-                        displayFolders(); 
-                    }
+                    if(resData.success) displayFolders(); 
                 } catch(err) {
-                    console.error("삭제 실패:", err);
-                    alert("서버 연결 실패로 인해 레코드 연쇄 삭제(CASCADE)를 수행하지 못했습니다.");
+                    alert("서버 연결 실패로 삭제 작업을 완료하지 못했습니다.");
                 }
             }
         }

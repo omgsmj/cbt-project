@@ -1,4 +1,5 @@
 // 1. 필수 라이브러리 로드
+const { GoogleGenAI } = require('@google/genai');
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
@@ -206,4 +207,47 @@ app.listen(PORT, () => {
     console.log(`====================================================`);
     console.log(`🎯 CBT Back-End Server가 http://localhost:${PORT} 에서 활성화되었습니다.`);
     console.log(`====================================================`);
+});
+// 🎯 [API 5] AI 실시간 족집게 해설 요청 통로 (POST /api/explain-ai)
+app.post('/api/explain-ai', async (req, res) => {
+    const { question, options, subject, number } = req.body;
+    
+    // 환경변수에 저장된 Gemini API Key가 없는 경우 예외 처리
+    if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "서버에 GEMINI_API_KEY 환경변수가 설정되지 않았습니다." });
+    }
+
+    try {
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        
+        // AI에게 던질 프롬프트 정밀 조립 (오글거리는 기계 티를 빼고 꼼꼼한 튜터 톤으로 유도)
+        const prompt = `
+            너는 정보처리기사 필기 시험을 완벽하게 마스터한 전문 컴퓨터공학 교수이자 친절한 멘토야.
+            사용자가 틀린 아래 문제를 분석하고, 각 보기(①, ②, ③, ④)가 왜 정답이고 왜 오답인지 명쾌하게 설명해줘.
+            
+            [과목] ${subject}
+            [문제 번호] ${number}번
+            [문제 내용] ${question}
+            [지문 보기]
+            1. ${options[0]}
+            2. ${options[1]}
+            3. ${options[2]}
+            4. ${options[3]}
+            
+            요구사항:
+            - 너무 기계적이거나 상투적인 서두("안녕하세요", "분석해 드리겠습니다" 등)는 생략하고 본론만 핵심을 짚어줘.
+            - 마크다운 문법을 적절히 활용해서 가독성 좋게 단락을 나누어 작성해줘.
+        `;
+
+        // 2026년 기준 최신 표준인 gemini-2.5-flash 모델 가동 (속도가 가장 빠르고 효율적)
+        const response = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+        });
+
+        res.json({ explanation: response.text });
+    } catch (err) {
+        console.error("Gemini 원격 연동 트랜잭션 오류:", err);
+        res.status(500).json({ error: "AI 해설 생성 중 서버 에러가 발생했습니다." });
+    }
 });
