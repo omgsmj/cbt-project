@@ -50,18 +50,27 @@ app.get('/api/questions', async (req, res) => {
     }
 });
 
-// 🎯 [과목별 문제 조회 API] 특정 과목의 문제만 DB에서 골라오는 라우트
+// 🎯 [회차별 + 과목별 복합 필터링 API]
 app.get('/api/questions/subject', async (req, res) => {
-    const { subject } = req.query; // 브라우저가 보낸 과목명 받기
+    const { subject, session } = req.query; // 브라우저가 보낸 과목명과 회차 받기
     try {
-        // 일관성 및 정렬 무결성을 위해 회차(session)와 문제번호(number) 순으로 정렬하여 추출
-        const result = await pool.query(
-            'SELECT * FROM questions WHERE subject = $1 ORDER BY session ASC, number ASC',
-            [subject]
-        );
+        let result;
+        if (session) {
+            // 회차와 과목이 둘 다 들어온 경우 (예: 1회차의 소프트웨어설계 20문제만)
+            result = await pool.query(
+                'SELECT * FROM questions WHERE subject = $1 AND session = $2 ORDER BY number ASC',
+                [subject, session]
+            );
+        } else {
+            // 회차 선택 없이 과목만 고른 경우 (기존처럼 1~3회차 해당 과목 전체)
+            result = await pool.query(
+                'SELECT * FROM questions WHERE subject = $1 ORDER BY session ASC, number ASC',
+                [subject]
+            );
+        }
         res.json(result.rows);
     } catch (err) {
-        console.error("과목별 데이터 조회 원격 트랜잭션 오류:", err);
+        console.error("과목/회차 필터링 조회 원격 트랜잭션 오류:", err);
         res.status(500).json({ error: "데이터베이스 조회 실패" });
     }
 });

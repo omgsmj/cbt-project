@@ -255,13 +255,13 @@
         <h2>⚔ Honor Shield | Shins 정처기 실전 고사장</h2>
         <div class="selector-group">
             <div class="session-btns">
-                <button onclick="loadExam(1)" id="btn-s1">1회차</button>
-                <button onclick="loadExam(2)" id="btn-s2">2회차</button>
-                <button onclick="loadExam(3)" id="btn-s3">3회차</button>
+                <button onclick="selectSession(1)" id="btn-s1">1회차</button>
+                <button onclick="selectSession(2)" id="btn-s2">2회차</button>
+                <button onclick="selectSession(3)" id="btn-s3">3회차</button>
             </div>
             
-            <select class="subject-select" id="subject-picker" onchange="loadSubjectExam(this.value)">
-                <option value="" disabled selected>🎯 과목별 집중 모드</option>
+            <select class="subject-select" id="subject-picker" onchange="loadFilteredExam(this.value)">
+                <option value="" selected>📦 전체 과목 보기</option>
                 <option value="소프트웨어설계">1과목: 소프트웨어 설계</option>
                 <option value="소프트웨어개발">2과목: 소프트웨어 개발</option>
                 <option value="데이터베이스구축">3과목: 데이터베이스 구축</option>
@@ -276,7 +276,7 @@
         <div class="quiz-area">
             <div id="result-area" class="result-box"></div>
             <div id="test-area" style="text-align: center; padding: 50px 0; color: var(--text-muted); font-size: 1.1rem;">
-                상단의 기출 회차 버튼이나 과목 집중 모드를 선택하시면 실시간 클라우드 DB에서 문제를 동적으로 매핑합니다.
+                상단의 기출 회차 버튼을 선택하시면 실시간 클라우드 DB에서 100문항을 동적으로 매핑합니다.
             </div>
         </div>
         
@@ -305,6 +305,7 @@
         let userAnswers = {};      
         let timerInterval;
         let currentExamTitle = ""; 
+        let selectedSession = null; // 현재 어떤 회차가 눌려있는지 기억하는 변수
         const optionSymbols = ["", "①", "②", "③", "④"];
 
         function getFormattedDate() {
@@ -317,34 +318,47 @@
             return `${yy}/${mm}/${dd} ${hh}:${min}`;
         }
 
-        // 회차별 로드 커넥터
-        async function loadExam(sessionNum) {
-            currentExamTitle = `${sessionNum}회차 모의고사`;
-            document.getElementById("subject-picker").value = ""; 
-            
+        // 회차 버튼 클릭 시 가동
+        function selectSession(sessionNum) {
+            selectedSession = sessionNum;
             document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active'));
             const activeBtn = document.getElementById(`btn-s${sessionNum}`);
             if(activeBtn) activeBtn.classList.add('active');
 
-            fetchQuestions(`${BACKEND_URL}/api/questions?session=${sessionNum}`);
+            // 회차를 새로 고르면 과목 필터도 '전체 과목 보기' 상태를 기반으로 리로드
+            const currentSubject = document.getElementById("subject-picker").value;
+            loadFilteredExam(currentSubject);
         }
 
-        // 과목별 로드 커넥터
-        async function loadSubjectExam(subjectName) {
-            // 원격 맵핑 상 문장 호환을 위해 4과목 치환 예외 처리 추가
+        // 복합 필터링 분기 처리 핵심 엔진
+        async function loadFilteredExam(subjectName) {
+            // 회차가 안 고른 상태에서 과목을 고르면 안내 팝업 후 1회차로 강제 지정
+            if (selectedSession === null) {
+                alert("기준이 될 회차(1~3회차)를 먼저 클릭한 후 과목을 필터링해 주세요!");
+                document.getElementById("subject-picker").value = "";
+                return;
+            }
+
+            let url = "";
             let querySubject = subjectName;
             if(subjectName === "pro") querySubject = "프로그래밍언어활용";
-            
-            currentExamTitle = `${querySubject} 집중 마스터`;
-            document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active')); 
 
-            fetchQuestions(`${BACKEND_URL}/api/questions/subject?subject=${encodeURIComponent(querySubject)}`);
+            if (!querySubject) {
+                // '전체 과목 보기'를 선택한 경우 ➔ 해당 회차 100문제 로드
+                currentExamTitle = `${selectedSession}회차 모의고사`;
+                url = `${BACKEND_URL}/api/questions?session=${selectedSession}`;
+            } else {
+                // 특정 과목을 선택한 경우 ➔ 해당 회차 + 해당 과목 복합 쿼리 가동 (20문제)
+                currentExamTitle = `${selectedSession}회차 - ${querySubject} 마스터`;
+                url = `${BACKEND_URL}/api/questions/subject?subject=${encodeURIComponent(querySubject)}&session=${selectedSession}`;
+            }
+
+            fetchQuestions(url);
         }
 
-        // 공통 코어 비동기 네트워크 엔진
         async function fetchQuestions(url) {
             const testArea = document.getElementById("test-area");
-            testArea.innerHTML = "<h3 style='text-align:center; color: var(--accent-color);'>🔄 클라우드 인프라에서 전 과목 기출 데이터를 가동 중입니다...</h3>";
+            testArea.innerHTML = "<h3 style='text-align:center; color: var(--accent-color);'>🔄 클라우드 인프라에서 조건에 맞는 기출 데이터를 매핑 중입니다...</h3>";
 
             try {
                 const response = await fetch(url);
@@ -358,7 +372,7 @@
                 renderQuestions(data);
             } catch (err) {
                 console.error(err);
-                testArea.innerHTML = "<h3 style='color: var(--danger-color);'>❌ 클라우드 서버 통신 장애! 렌더 환경변수 세팅 상태를 다시 점검해 주세요.</h3>";
+                testArea.innerHTML = "<h3 style='color: var(--danger-color);'>❌ 클라우드 서버 통신 장애! 주소 세팅을 점검하세요.</h3>";
             }
         }
 
@@ -503,10 +517,12 @@
             let gwarakReportHtml = "";
             
             for (const sub in subjectScores) {
-                const subScore = subjectScores[sub] * 5; 
+                // 문항 수가 100문제가 아니라 특정 과목 20문제 스크리닝일 때의 점수 왜곡 방지를 위해 유연한 수식 처리
+                const subTotalCount = currentQuestions.filter(q => q.subject === sub).length || 20;
+                const subScore = Math.round((subjectScores[sub] / subTotalCount) * 100);
                 let isSubGwarak = subScore < 40;
-                if(isSubGwarak) isGwarak = true;
-                gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b>${subScore}점 (${subjectScores[sub]}/20)</div>`;
+                if(isSubGwarak && currentQuestions.length === 100) isGwarak = true; // 100문항 풀 때만 과락 적용
+                gwarakReportHtml += `<div class="score-item ${isSubGwarak ? 'gwarak' : ''}"><b>${sub}</b>${subScore}점 (${subjectScores[sub]}/${subTotalCount})</div>`;
             }
 
             const isPass = finalScore >= 60 && !isGwarak;
@@ -529,17 +545,17 @@
                 console.log("원격 레코드 동기화 완료:", saveResult.message);
             } catch(e) {
                 console.error("결과 서버 전송 실패:", e);
-                alert("채점 계산은 완료되었으나, 백엔드 허브와의 연결 지연으로 인해 오답노트 원격 적재에는 실패했습니다.");
+                alert("채점 계산은 완료되었으나, 원격 서버 저장에 실패했습니다.");
             }
 
             const resultArea = document.getElementById("result-area");
             resultArea.style.display = "block";
 
             let summaryHtml = isPass 
-                ? `<div class="result-title" style="color: var(--success-color);">🎉 합격 기준을 충족했습니다! (총점: ${finalScore}점)</div>` 
-                : `<div class="result-title" style="color: var(--danger-color);">😭 불합격 마크 처리되었습니다. (총점: ${finalScore}점)</div>`;
+                ? `<div class="result-title" style="color: var(--success-color);">🎉 기준점수를 달성했습니다! (획득 점수: ${finalScore}점)</div>` 
+                : `<div class="result-title" style="color: var(--danger-color);">😭 기준점수 미달입니다. (획득 점수: ${finalScore}점)</div>`;
 
-            resultArea.innerHTML = summaryHtml + `<h4 style="margin: 20px 0 10px 0; color: #f0f6fc;">[5개 과목별 과락 정밀 분석 현황]</h4><div class="score-summary">${gwarakReportHtml}</div>`;
+            resultArea.innerHTML = summaryHtml + `<h4 style="margin: 20px 0 10px 0; color: #f0f6fc;">[상세 점수 피드백 현황]</h4><div class="score-summary">${gwarakReportHtml}</div>`;
             
             if(modalHtml !== "") {
                 document.getElementById("modal-body").innerHTML = modalHtml;
