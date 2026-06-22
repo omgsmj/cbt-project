@@ -129,14 +129,18 @@ app.post('/api/results', async (req, res) => {
 // ----------------------------------------------------
 // [API 3] 폴더별 오답노트 목록 통합 조회 통로 (GET /api/histories)
 // ----------------------------------------------------
+// ----------------------------------------------------
+// [API 3] 폴더별 오답노트 목록 통합 조회 통로 (GET /api/histories)
+// ----------------------------------------------------
 app.get('/api/histories', async (req, res) => {
     try {
-        // 테이블 조인(JOIN)을 사용하여 부모 폴더 정보와 자식 오답 상세, 기출문제 원본 내용까지 한 번에 결합해서 가져옴
+        // 테이블 조인(JOIN)을 사용하여 부모 폴더 정보와 자식 오답 상세, 기출문제 원본 내용(해설 포함)까지 한 번에 결합해서 가져옴
         const sql = `
             SELECT 
                 eh.id AS history_id, eh.folder_name, eh.exam_title, eh.score, eh.result,
                 wa.user_answer,
-                q.session, q.number, q.subject, q.question, q.options, q.answer AS correct_answer
+                q.session, q.number, q.subject, q.question, q.options, q.answer AS correct_answer,
+                q.explanation
             FROM exam_histories eh
             LEFT JOIN wrong_answers wa ON eh.id = wa.history_id
             LEFT JOIN questions q ON wa.question_id = q.id
@@ -166,15 +170,17 @@ app.get('/api/histories', async (req, res) => {
                     question: row.question,
                     options: row.options,
                     answer: row.correct_answer,
-                    userAnswer: row.user_answer
+                    userAnswer: row.user_answer,
+                    explanation: row.explanation // 해설 데이터 매핑
                 });
             }
         });
 
-        // 오브젝트 맵을 깔끔한 순수 배열로 변환하여 반환
+        // 오브젝트 맵을 깔끔한 순수 배열로 변환하여 최종 반환 (중복 구문 제거)
         res.json(Object.values(historiesMap));
+
     } catch (err) {
-        console.error(err);
+        console.error("오답노트 목록 원격 조인 트랜잭션 오류:", err);
         res.status(500).json({ error: "오답노트 기록 로드 중 에러 발생" });
     }
 });

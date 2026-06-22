@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Shins 정처기 - 오답노트 보관함</title>
+    <title>Shins 정보처리기사 - 오답노트 보관함</title>
     <style>
         :root {
             --bg-color: #0d1117;
@@ -97,7 +97,7 @@
             padding: 20px; 
             border-left: 4px solid var(--danger-color); 
             border-radius: 6px; 
-            margin-bottom: 15px; 
+            margin-bottom: 20px; 
             border-top: 1px solid var(--border-color);
             border-right: 1px solid var(--border-color);
             border-bottom: 1px solid var(--border-color);
@@ -109,6 +109,34 @@
         
         /* 보기 문장 스타일 */
         .opt-line { margin: 8px 0; padding: 6px 10px; border-radius: 4px; font-size: 0.95rem; color: var(--text-color); }
+
+        /* 해설 영역 스타일 */
+        .btn-explain-toggle {
+            background: #21262d;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 6px 12px;
+            font-size: 0.85rem;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-top: 12px;
+            font-weight: 600;
+            transition: all 0.2s;
+        }
+        .btn-explain-toggle:hover { background: #30363d; color: #f0f6fc; }
+        
+        .explain-wrapper {
+            display: none;
+            margin-top: 12px;
+            padding: 15px;
+            background: #1f242c;
+            border-radius: 6px;
+            border: 1px solid var(--border-color);
+            font-size: 0.95rem;
+            line-height: 1.6;
+            color: #e6edf2;
+            white-space: pre-wrap; /* 줄바꿈 기호 온전히 보존 */
+        }
 
         /* 폴더 삭제 버튼 */
         .btn-delete-folder { 
@@ -131,7 +159,7 @@
 
     <div class="wrapper">
         <div class="header-area">
-            <h2>📁 오답노트 폴더 보관함</h2>
+            <h2>📁 나의 오답노트 폴더 관리함</h2>
             <div>
                 <a href="index.html" class="btn-home">← 메인으로 이탈</a>
             </div>
@@ -182,7 +210,8 @@
                         
                         <div class="folder-content" id="content-${folder.id}">`;
 
-                    folder.questions.forEach(function(q) {
+                    folder.questions.forEach(function(q, qIdx) {
+                        const uniqueId = `explain-${folder.id}-${qIdx}`;
                         htmlContent += `
                             <div class="quiz-card">
                                 <h4>No.${q.number} <span style="color:var(--text-muted); font-size:0.8rem; margin-left:6px;">[${q.subject}]</span></h4>
@@ -207,7 +236,12 @@
                             htmlContent += `<div class="opt-line" style="${optionStyle}">${optionSymbols[idxNum]} ${opt}${checkMark}</div>`;
                         });
 
-                        htmlContent += `</div>`;
+                        // 💡 해설 데이터가 존재할 경우 아코디언 토글 레이아웃 주입
+                        const expText = q.explanation ? q.explanation : "해당 문항의 해설 텍스트 데이터가 비어있습니다.";
+                        htmlContent += `
+                            <button class="btn-explain-toggle" onclick="toggleExplanation('${uniqueId}', event)">💡 정답 및 오답피하기 해설 보기</button>
+                            <div class="explain-wrapper" id="${uniqueId}">${expText}</div>
+                        </div>`;
                     });
 
                     htmlContent += `</div>`; 
@@ -225,6 +259,15 @@
             const contentBox = document.getElementById(`content-${folderId}`);
             if(contentBox) {
                 contentBox.style.display = (contentBox.style.display === "block") ? "none" : "block";
+            }
+        }
+
+        // 해설 상자 열고 닫는 토글 함수 (폴더 아코디언 버블링 방지 포함)
+        function toggleExplanation(elementId, event) {
+            event.stopPropagation();
+            const expBox = document.getElementById(elementId);
+            if(expBox) {
+                expBox.style.display = (expBox.style.display === "block") ? "none" : "block";
             }
         }
 
