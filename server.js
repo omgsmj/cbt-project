@@ -3,6 +3,9 @@ const { GoogleGenAI } = require('@google/genai');
 const express = require('express');
 const { Pool } = require('pg');
 const cors = require('cors');
+const path = require('path'); 
+const multer = require('multer');
+const pdfParse = require('pdf-parse');
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -11,8 +14,8 @@ const PORT = process.env.PORT || 3000;
 // 2. 미들웨어 설정 (서버 통신 규격 세팅)
 app.use(cors()); // 프론트엔드 브라우저의 CORS 차단 정책 해제
 app.use(express.json()); // 브라우저가 보낸 JSON 데이터를 자바스크립트 객체로 파싱
-// 서버가 현재 폴더에 있는 HTML 파일들을 브라우저에 직접 보내주도록 설정하는 마법의 코드
-app.use(express.static(__dirname));
+app.use(express.static(__dirname)); // 서버가 현재 폴더에 있는 HTML 파일들을 브라우저에 직접 보내주도록 설정
+
 // 3. PostgreSQL 데이터베이스 연결 설정 (커넥션 풀 생성)
 const pool = new Pool({
     user: process.env.DB_USER,
@@ -22,11 +25,22 @@ const pool = new Pool({
     database: process.env.DB_DATABASE
 });
 
-const path = require('path'); // 파일 경로를 다루는 도구
+// 🔒 [보안 추가] 파일 업로드 제약 및 확장자 필터링 설정 (최대 15MB)
+const upload = multer({ 
+    storage: multer.memoryStorage(),
+    limits: { fileSize: 15 * 1024 * 1024 },
+    fileFilter: (req, file, cb) => {
+        if (file.mimetype !== 'application/pdf') {
+            return cb(new Error('오직 PDF 확장자 파일만 진입할 수 있습니다.'), false);
+        }
+        cb(null, true);
+    }
+});
 
+// 라우팅 - 메인 화면 경로
 app.get('/', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
-}); // ➔ 여기에 중괄호 '}'와 소괄호 ')'가 정확히 닫혀야 에러가 나지 않습니다!
+});
 
 // ----------------------------------------------------
 // [API 1] 기출문제 조회 통로 (GET /api/questions?session=1)
@@ -39,31 +53,30 @@ app.get('/api/questions', async (req, res) => {
     }
 
     try {
-        // SQL 실행하여 해당 회차의 문제를 번호 순서대로 가져옴
         const result = await pool.query(
             'SELECT id, session, number, subject, question, options, answer FROM questions WHERE session = $1 ORDER BY number ASC',
             [sessionNum]
         );
-        res.json(result.rows); // 조회된 행 리스트를 프론트엔드로 전송
+        res.json(result.rows); 
     } catch (err) {
         console.error(err);
         res.status(500).json({ error: "데이터베이스 조회 중 오류가 발생했습니다." });
     }
 });
 
-// 🎯 [회차별 + 과목별 복합 필터링 API]
+// ----------------------------------------------------
+// [API 1-2] 회차별 + 과목별 복합 필터링 기출 조회 통로
+// ----------------------------------------------------
 app.get('/api/questions/subject', async (req, res) => {
-    const { subject, session } = req.query; // 브라우저가 보낸 과목명과 회차 받기
+    const { subject, session } = req.query; 
     try {
         let result;
         if (session) {
-            // 회차와 과목이 둘 다 들어온 경우 (예: 1회차의 소프트웨어설계 20문제만)
             result = await pool.query(
                 'SELECT * FROM questions WHERE subject = $1 AND session = $2 ORDER BY number ASC',
                 [subject, session]
             );
         } else {
-            // 회차 선택 없이 과목만 고른 경우 (기존처럼 1~3회차 해당 과목 전체)
             result = await pool.query(
                 'SELECT * FROM questions WHERE subject = $1 ORDER BY session ASC, number ASC',
                 [subject]
@@ -80,26 +93,19 @@ app.get('/api/questions/subject', async (req, res) => {
 // [API 2] 모의고사 결과 제출 및 오답 저장 통로 (POST /api/results)
 // ----------------------------------------------------
 app.post('/api/results', async (req, res) => {
-    // 프론트엔드가 body에 담아 보낸 포맷 데이터 추출
     const { folderName, examTitle, score, result, wrongQuestions } = req.body;
-
-    // 데이터가 꼬이는 것을 방지하기 위해 PostgreSQL의 트랜잭션(Transaction) 기능 가동
     const client = await pool.connect();
     try {
-        await client.query('BEGIN'); // ★ 채점 데이터 일괄 저장 시작 (안전장치)
+        await client.query('BEGIN'); 
 
-        // A. 부모 테이블(exam_histories)에 폴더 요약 데이터 먼저 삽입 및 방금 생성된 ID 반환받기
         const historyResult = await client.query(
             'INSERT INTO exam_histories (folder_name, exam_title, score, result) VALUES ($1, $2, $3, $4) RETURNING id',
             [folderName, examTitle, score, result]
         );
-        const newHistoryId = historyResult.rows[0].id; // 새로 만들어진 부모 폴더 고유 번호
+        const newHistoryId = historyResult.rows[0].id; 
 
-        // B. 자식 테이블(wrong_answers)에 루프를 돌며 틀린 문제들을 연달아 삽입
         if (wrongQuestions && wrongQuestions.length > 0) {
             for (let q of wrongQuestions) {
-                // 기존 기출문제 마스터 id를 찾기 위해 회차와 문제번호 조건으로 서브쿼리 활용 가능하지만, 
-                // 여기서는 프론트엔드가 준 번호 기반 매핑 처리 수행
                 const qSelect = await client.query(
                     'SELECT id FROM questions WHERE session = $1 AND number = $2',
                     [q.session, q.number]
@@ -115,27 +121,23 @@ app.post('/api/results', async (req, res) => {
             }
         }
 
-        await client.query('COMMIT'); // ★ 모든 데이터가 완벽히 저장되었으므로 확정 반영
+        await client.query('COMMIT'); 
         res.json({ success: true, message: "시험 결과 및 오답노트가 안전하게 DB에 보관되었습니다." });
 
     } catch (err) {
-        await client.query('ROLLBACK'); // ❌ 도중에 에러가 하나라도 나면 전부 취소하고 백업 상태로 롤백
+        await client.query('ROLLBACK'); 
         console.error(err);
         res.status(500).json({ error: "채점 데이터 저장 중 트랜잭션 에러가 발생하여 취소되었습니다." });
     } finally {
-        client.release(); // 사용한 DB 연결 끈 반납
+        client.release(); 
     }
 });
 
 // ----------------------------------------------------
 // [API 3] 폴더별 오답노트 목록 통합 조회 통로 (GET /api/histories)
 // ----------------------------------------------------
-// ----------------------------------------------------
-// [API 3] 폴더별 오답노트 목록 통합 조회 통로 (GET /api/histories)
-// ----------------------------------------------------
 app.get('/api/histories', async (req, res) => {
     try {
-        // 테이블 조인(JOIN)을 사용하여 부모 폴더 정보와 자식 오답 상세, 기출문제 원본 내용(해설 포함)까지 한 번에 결합해서 가져옴
         const sql = `
             SELECT 
                 eh.id AS history_id, eh.folder_name, eh.exam_title, eh.score, eh.result,
@@ -149,7 +151,6 @@ app.get('/api/histories', async (req, res) => {
         `;
         const result = await pool.query(sql);
         
-        // 데이터 구조화: 테이블 조인으로 인한 평면적인 데이터를 프론트엔드가 쓰기 편하게 '폴더 내부 배열 계층형' 구조로 가공
         const historiesMap = {};
         result.rows.forEach(row => {
             if (!historiesMap[row.history_id]) {
@@ -162,7 +163,6 @@ app.get('/api/histories', async (req, res) => {
                     questions: []
                 };
             }
-            // 틀린 문제가 매핑되어 있는 경우에만 배열에 주입
             if (row.number) {
                 historiesMap[row.history_id].questions.push({
                     session: row.session,
@@ -172,12 +172,11 @@ app.get('/api/histories', async (req, res) => {
                     options: row.options,
                     answer: row.correct_answer,
                     userAnswer: row.user_answer,
-                    explanation: row.explanation // 해설 데이터 매핑
+                    explanation: row.explanation 
                 });
             }
         });
 
-        // 오브젝트 맵을 깔끔한 순수 배열로 변환하여 최종 반환 (중복 구문 제거)
         res.json(Object.values(historiesMap));
 
     } catch (err) {
@@ -190,10 +189,8 @@ app.get('/api/histories', async (req, res) => {
 // [API 4] 오답노트 폴더 통째로 직접 삭제 통로 (DELETE /api/histories/:id)
 // ----------------------------------------------------
 app.delete('/api/histories/:id', async (req, res) => {
-    const historyId = req.params.id; // URL 주소창에 실려 온 고유 ID 값 추출
-
+    const historyId = req.params.id; 
     try {
-        // ON DELETE CASCADE 제약을 걸어두었기 때문에, 부모 행만 지우면 자식 wrong_answers 데이터는 트리거로 자동 삭제됩니다.
         await pool.query('DELETE FROM exam_histories WHERE id = $1', [historyId]);
         res.json({ success: true, message: "해당 회차 폴더와 오답 목록이 DB에서 영구 삭제되었습니다." });
     } catch (err) {
@@ -202,17 +199,12 @@ app.delete('/api/histories/:id', async (req, res) => {
     }
 });
 
-// 4. 서버 바인딩 가동
-app.listen(PORT, () => {
-    console.log(`====================================================`);
-    console.log(`🎯 CBT Back-End Server가 http://localhost:${PORT} 에서 활성화되었습니다.`);
-    console.log(`====================================================`);
-});
-// 🎯 [API 5] AI 실시간 족집게 해설 요청 통로 (POST /api/explain-ai)
+// ----------------------------------------------------
+// [API 5] AI 실시간 족집게 해설 요청 통로 (POST /api/explain-ai)
+// ----------------------------------------------------
 app.post('/api/explain-ai', async (req, res) => {
     const { question, options, subject, number } = req.body;
     
-    // 환경변수에 저장된 Gemini API Key가 없는 경우 예외 처리
     if (!process.env.GEMINI_API_KEY) {
         return res.status(500).json({ error: "서버에 GEMINI_API_KEY 환경변수가 설정되지 않았습니다." });
     }
@@ -220,7 +212,6 @@ app.post('/api/explain-ai', async (req, res) => {
     try {
         const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
         
-        // AI에게 던질 프롬프트 정밀 조립 (오글거리는 기계 티를 빼고 꼼꼼한 튜터 톤으로 유도)
         const prompt = `
             너는 정보처리기사 필기 시험을 완벽하게 마스터한 전문 컴퓨터공학 교수이자 친절한 멘토야.
             사용자가 틀린 아래 문제를 분석하고, 각 보기(①, ②, ③, ④)가 왜 정답이고 왜 오답인지 명쾌하게 설명해줘.
@@ -235,11 +226,10 @@ app.post('/api/explain-ai', async (req, res) => {
             4. ${options[3]}
             
             요구사항:
-            - 너무 기계적이거나 상투적인 서두("안녕하세요", "분석해 드리겠습니다" 등)는 생략하고 본론만 핵심을 짚어줘.
+            - 너무 기계적이거나 상투적인 서두는 생략하고 본론만 핵심을 짚어줘.
             - 마크다운 문법을 적절히 활용해서 가독성 좋게 단락을 나누어 작성해줘.
         `;
 
-        // 2026년 기준 최신 표준인 gemini-2.5-flash 모델 가동 (속도가 가장 빠르고 효율적)
         const response = await ai.models.generateContent({
             model: 'gemini-2.5-flash',
             contents: prompt,
@@ -250,4 +240,114 @@ app.post('/api/explain-ai', async (req, res) => {
         console.error("Gemini 원격 연동 트랜잭션 오류:", err);
         res.status(500).json({ error: "AI 해설 생성 중 서버 에러가 발생했습니다." });
     }
+});
+
+// ----------------------------------------------------
+// 🚀 [API 6] 안전한 스마트 PDF 업로드 및 토큰 트래커 연동 엔진 (신설)
+// ----------------------------------------------------
+app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
+    const { adminPassword, sessionName } = req.body;
+    
+    // 🔑 보안 필터링
+    if (adminPassword !== "ShinPass2026") { 
+        return res.status(403).json({ error: "접근 권한이 없습니다. 마스터 비밀번호가 올바르지 않습니다." });
+    }
+    if (!sessionName || sessionName.trim() === "") {
+        return res.status(400).json({ error: "모의고사 회차 명칭이 누락되었습니다." });
+    }
+    if (!process.env.GEMINI_API_KEY) {
+        return res.status(500).json({ error: "Gemini API 키가 설정되지 않았습니다." });
+    }
+
+    try {
+        if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
+
+        const pdfData = await pdfParse(req.file.buffer);
+        const rawText = pdfData.text.trim();
+
+        if (!rawText || rawText.length < 150) {
+            return res.status(400).json({ error: "PDF 내부 문자를 추출할 수 없습니다. 스캔본 이미지인지 확인하세요." });
+        }
+
+        // Gemini JSON 규격 스키마 정의
+        const responseSchema = {
+            type: "ARRAY",
+            description: "추출 및 요약 가공된 정보처리기사 필기 기출문제 리스트 데이터셋",
+            items: {
+                type: "OBJECT",
+                properties: {
+                    number: { type: "INTEGER", description: "문제 번호 (1~100)" },
+                    subject: { type: "STRING", description: "해당 문제의 과목명" },
+                    question: { type: "STRING", description: "기출문제 질문 내용" },
+                    options: { 
+                        type: "ARRAY", 
+                        items: { type: "STRING" }, 
+                        description: "기호를 제외한 순수 보기 문장 4개" 
+                    },
+                    answer: { type: "STRING", description: "정답 인덱스 숫자 번호 (1, 2, 3, 4 중 하나)" },
+                    explanation: { type: "STRING", description: "문제를 풀기 위한 명쾌한 해설" }
+                },
+                required: ["number", "subject", "question", "options", "answer", "explanation"]
+            }
+        };
+
+        const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+        const prompt = `
+            다음은 정보처리기사 기출문제집 PDF에서 스크래핑한 텍스트 원본이야.
+            이 데이터를 분석하여 모든 문항을 빠짐없이 스키마 규격에 맞는 깔끔한 JSON 배열로 반환해줘.
+            오답 지문까지 파고드는 친절한 해설(explanation)을 풍부하게 생성해줘.
+
+            [추출된 텍스트]
+            ${rawText}
+        `;
+
+        const aiResponse = await ai.models.generateContent({
+            model: 'gemini-2.5-flash',
+            contents: prompt,
+            config: {
+                responseMimeType: "application/json",
+                responseSchema: responseSchema,
+            }
+        });
+
+        const parsedQuestions = JSON.parse(aiResponse.text);
+
+        // PostgreSQL 트랜잭션 주입 (ON CONFLICT Upsert 처리 포함)
+        for (let q of parsedQuestions) {
+            await pool.query(
+                `INSERT INTO questions (session, number, subject, question, options, answer, explanation)
+                 VALUES ($1, $2, $3, $4, $5, $6, $7)
+                 ON CONFLICT (session, number) DO UPDATE 
+                 SET subject = EXCLUDED.subject, question = EXCLUDED.question, options = EXCLUDED.options, answer = EXCLUDED.answer, explanation = EXCLUDED.explanation`,
+                [sessionName, q.number, q.subject, q.question, q.options, q.answer, q.explanation]
+            );
+        }
+
+        // 토큰 소비 영수증 데이터 조립
+        const tokenUsage = {
+            promptTokens: aiResponse.usageMetadata?.promptTokenCount || 0,
+            completionTokens: aiResponse.usageMetadata?.candidatesTokenCount || 0,
+            totalTokens: aiResponse.usageMetadata?.totalTokenCount || 0
+        };
+
+        res.json({ 
+            success: true, 
+            count: parsedQuestions.length, 
+            sessionInserted: sessionName,
+            tokenUsage: tokenUsage 
+        });
+
+    } catch (err) {
+        console.error("스마트 PDF 업로드 파이프라인 에러:", err);
+        res.status(500).json({ error: "PDF 연동 및 가공 프로세스 진행 중 내부 시스템 에러가 발생했습니다." });
+    }
+});
+
+// ----------------------------------------------------
+// 4. 서버 바인딩 가동 (무조건 소스 코드의 최하단에 위치)
+// ----------------------------------------------------
+app.listen(PORT, () => {
+    console.log(`====================================================`);
+    console.log(`🎯 CBT Back-End Server가 http://localhost:${PORT} 에서 활성화되었습니다.`);
+    console.log(`====================================================`);
 });

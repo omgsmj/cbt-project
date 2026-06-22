@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Shins CBT - 기출 인프라 확장 허브</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            background-color: #0d1117;
+            color: #c9d1d9;
+            padding: 50px 20px;
+            margin: 0;
+        }
+        .container {
+            max-width: 600px;
+            margin: 0 auto;
+            background: #161b22;
+            border: 1px solid #30363d;
+            border-radius: 12px;
+            padding: 35px;
+            box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+        }
+        h2 { color: #f0f6fc; margin-top: 0; text-align: center; border-bottom: 1px solid #30363d; padding-bottom: 15px; }
+        .form-group { margin-bottom: 20px; }
+        label { display: block; font-weight: bold; margin-bottom: 8px; color: #8b949e; font-size: 0.9rem; }
+        input[type="file"], input[type="password"], select {
+            width: 100%;
+            padding: 12px;
+            background: #21262d;
+            border: 1px solid #30363d;
+            border-radius: 6px;
+            color: #f0f6fc;
+            box-sizing: border-box;
+            font-size: 0.95rem;
+        }
+        input:focus, select:focus { border-color: #58a6ff; outline: none; }
+        .btn-submit {
+            width: 100%;
+            padding: 14px;
+            background: #2ea44f;
+            color: white;
+            border: none;
+            border-radius: 6px;
+            font-size: 1rem;
+            font-weight: bold;
+            cursor: pointer;
+            transition: background 0.2s;
+            margin-top: 10px;
+        }
+        .btn-submit:hover { background: #347d39; }
+        .status-box {
+            margin-top: 25px;
+            padding: 15px;
+            border-radius: 6px;
+            background: #0f141c;
+            border: 1px solid #30363d;
+            display: none;
+            font-size: 0.9rem;
+            line-height: 1.6;
+        }
+        .receipt-card {
+            margin-top: 15px;
+            border-top: 1px dashed #30363d;
+            padding-top: 12px;
+            color: #8b949e;
+        }
+        .token-num { color: #58a6ff; font-weight: bold; }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h2>📄 기출문제 AI 원클릭 업로드 전송 인프라</h2>
+    
+    <div class="form-group">
+        <label>🎯 저장할 시험 회차 명칭</label>
+        <select id="sessionName">
+            <option value="2026년 제4회차 기출">2026년 제4회차 기출</option>
+            <option value="2026년 제5회차 기출">2026년 제5회차 기출</option>
+            <option value="2027년 제1회차 기출">2027년 제1회차 기출</option>
+        </select>
+    </div>
+
+    <div class="form-group">
+        <label>📁 정처기 원본 PDF 파일 선택</label>
+        <input type="file" id="pdfFile" accept=".pdf">
+    </div>
+
+    <div class="form-group">
+        <label>🔑 관리자 마스터 보안 패스워드</label>
+        <input type="password" id="adminPassword" placeholder="ShinPass2026 형식의 비밀번호 기입">
+    </div>
+
+    <button class="btn-submit" onclick="executeUpload()">⚡ 대용량 AI 분석 및 DB 연쇄 적재 가동</button>
+
+    <div class="status-box" id="statusBox"></div>
+</div>
+
+<script>
+    // ⚠️ 본인의 실제 Render 주소로 기입해 두세요! (끝에 /는 제외)
+    const BACKEND_URL = "https://shins-cbt.onrender.com";
+
+    async function executeUpload() {
+        const sessionName = document.getElementById('sessionName').value;
+        const pdfFile = document.getElementById('pdfFile').files[0];
+        const adminPassword = document.getElementById('adminPassword').value;
+        const statusBox = document.getElementById('statusBox');
+
+        if (!pdfFile || !adminPassword) {
+            alert("파일과 보안 패스워드는 필수 기입 요소입니다.");
+            return;
+        }
+
+        const formData = new FormData();
+        formData.append("sessionName", sessionName);
+        formData.append("pdfFile", pdfFile);
+        formData.append("adminPassword", adminPassword);
+
+        statusBox.style.display = "block";
+        statusBox.innerHTML = `<span style="color: #58a6ff;">⏳ 백엔드 크롤러가 PDF 문장을 파싱하고 구글 인프라에서 해설 레이어를 결합하는 중입니다. 대용량 트랜잭션이므로 약 10~20초 가량 소요됩니다...</span>`;
+
+        try {
+            const response = await fetch(`${BACKEND_URL}/api/upload-pdf`, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+
+            if (result.success) {
+                statusBox.innerHTML = `
+                    <span style="color: #56d364; font-weight: bold;">✔️ 인프라 파이프라인 빌드 성공!</span><br>
+                    지정하신 <strong style="color:white;">[${result.sessionInserted}]</strong> 룸에 총 <strong>${result.count}개</strong>의 기출문제가 해설과 함께 무결성 데이터베이스 적재를 완료했습니다.
+                    
+                    <div class="receipt-card">
+                        📊 <strong>Gemini AI Quota 영수증</strong><br>
+                        - 입력(질문+PDF텍스트) 소모 토큰: <span class="token-num">${result.tokenUsage.promptTokens.toLocaleString()} tokens</span><br>
+                        - 출력(구조화 정제 JSON) 소모 토큰: <span class="token-num">${result.tokenUsage.completionTokens.toLocaleString()} tokens</span><br>
+                        - 이번 요청 총 합산 토큰: <span class="token-num" style="color:#56d364;">${result.tokenUsage.totalTokens.toLocaleString()} tokens</span>
+                    </div>
+                `;
+            } else {
+                statusBox.innerHTML = `<span style="color: #ff7b72;">❌ 연동 거절: ${result.error}</span>`;
+            }
+        } catch (err) {
+            console.error(err);
+            statusBox.innerHTML = `<span style="color: #ff7b72;">❌ 네트워크 트래픽 단절 오류가 발생했습니다. 파일 크기 및 패스워드를 체크하세요.</span>`;
+        }
+    }
+</script>
+</body>
+</html>
