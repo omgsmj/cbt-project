@@ -338,8 +338,19 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
         });
 
     } catch (err) {
-        console.error("스마트 PDF 업로드 파이프라인 에러:", err);
-        res.status(500).json({ error: "PDF 연동 및 가공 프로세스 진행 중 내부 시스템 에러가 발생했습니다." });
+        console.error("스마트 PDF 업로드 파이프라인 상세 에러 로그:", err);
+        
+        let errorMessage = err.message || "알 수 없는 시스템 장애";
+        
+        if (err.status === 429 || errorMessage.includes("Quota")) {
+            errorMessage = "🤖 AI 무료 토큰 사용량이 분당/일일 제한에 도달했습니다. 잠시 후 다시 시도해 주세요.";
+        } else if (err instanceof SyntaxError) {
+            errorMessage = "❌ AI 응답 데이터의 JSON 파싱 실패 (AI가 한도를 초과하여 데이터를 중간에 잘라 먹었을 확률이 높습니다. PDF 분량을 한 과목씩 쪼개서 업로드해 보세요.)";
+        } else if (errorMessage.includes("INSERT") || errorMessage.includes("column")) {
+            errorMessage = `📊 PostgreSQL DB 적재 실패 (원인: ${errorMessage})`;
+        }
+
+        res.status(500).json({ error: errorMessage });
     }
 });
 
