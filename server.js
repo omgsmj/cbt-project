@@ -5,7 +5,9 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
-const pdf = require('pdf-parse');
+// 변경 전: const pdfData = await pdf(req.file.buffer);
+// 변경 후:
+const pdfData = await (typeof pdf === 'function' ? pdf : pdf.default || pdf)(req.file.buffer);
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
