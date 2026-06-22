@@ -37,8 +37,13 @@
             position: sticky;
             top: 0;
             z-index: 100;
+            flex-wrap: wrap;
+            gap: 15px;
         }
         .control-bar h2 { margin: 0; font-size: 1.3rem; font-weight: 700; }
+        
+        .selector-group { display: flex; align-items: center; gap: 15px; flex-wrap: wrap; }
+
         .session-btns button {
             background: #21262d;
             color: var(--text-color);
@@ -55,6 +60,20 @@
             color: #fff;
             border-color: var(--accent-color);
         }
+
+        /* 과목 집중 모드 전용 드롭다운 */
+        .subject-select {
+            background: #21262d;
+            color: var(--text-color);
+            border: 1px solid var(--border-color);
+            padding: 8px 12px;
+            font-weight: bold;
+            border-radius: 6px;
+            cursor: pointer;
+            outline: none;
+            font-size: 0.9rem;
+        }
+
         .timer-box { 
             font-size: 1.1rem; 
             font-weight: bold; 
@@ -233,11 +252,22 @@
 <body>
 
     <div class="control-bar">
-        <h2>⚔️ Shins 정처기 실전 고사장</h2>
-        <div class="session-btns">
-            <button onclick="loadExam(1)" id="btn-s1">1회차</button>
-            <button onclick="loadExam(2)" id="btn-s2">2회차</button>
-            <button onclick="loadExam(3)" id="btn-s3">3회차</button>
+        <h2>⚔ Honor Shield | Shins 정처기 실전 고사장</h2>
+        <div class="selector-group">
+            <div class="session-btns">
+                <button onclick="loadExam(1)" id="btn-s1">1회차</button>
+                <button onclick="loadExam(2)" id="btn-s2">2회차</button>
+                <button onclick="loadExam(3)" id="btn-s3">3회차</button>
+            </div>
+            
+            <select class="subject-select" id="subject-picker" onchange="loadSubjectExam(this.value)">
+                <option value="" disabled selected>🎯 과목별 집중 모드</option>
+                <option value="소프트웨어설계">1과목: 소프트웨어 설계</option>
+                <option value="소프트웨어개발">2과목: 소프트웨어 개발</option>
+                <option value="데이터베이스구축">3과목: 데이터베이스 구축</option>
+                <option value="pro">4과목: 프로그래밍 언어 활용</option>
+                <option value="정보시스템구축관리">5과목: 정보시스템 구축 관리</option>
+            </select>
         </div>
         <div id="timer" class="timer-box">남은 시간: 150분 00초</div>
     </div>
@@ -246,7 +276,7 @@
         <div class="quiz-area">
             <div id="result-area" class="result-box"></div>
             <div id="test-area" style="text-align: center; padding: 50px 0; color: var(--text-muted); font-size: 1.1rem;">
-                상단의 기출 회차 버튼을 선택하시면 실시간 클라우드 DB에서 100문항을 동적으로 매핑합니다.
+                상단의 기출 회차 버튼이나 과목 집중 모드를 선택하시면 실시간 클라우드 DB에서 문제를 동적으로 매핑합니다.
             </div>
         </div>
         
@@ -268,7 +298,7 @@
     </div>
 
     <script>
-        // 렌더 백엔드 서버 고유 파이프라인 주소 고정
+        // ⚠️ 본인의 실제 Render 백엔드 도메인 주소로 교체해서 push 하세요!
         const BACKEND_URL = "https://shins-cbt.onrender.com";
 
         let currentQuestions = []; 
@@ -287,23 +317,42 @@
             return `${yy}/${mm}/${dd} ${hh}:${min}`;
         }
 
+        // 회차별 로드 커넥터
         async function loadExam(sessionNum) {
             currentExamTitle = `${sessionNum}회차 모의고사`;
+            document.getElementById("subject-picker").value = ""; 
             
             document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active'));
             const activeBtn = document.getElementById(`btn-s${sessionNum}`);
             if(activeBtn) activeBtn.classList.add('active');
 
+            fetchQuestions(`${BACKEND_URL}/api/questions?session=${sessionNum}`);
+        }
+
+        // 과목별 로드 커넥터
+        async function loadSubjectExam(subjectName) {
+            // 원격 맵핑 상 문장 호환을 위해 4과목 치환 예외 처리 추가
+            let querySubject = subjectName;
+            if(subjectName === "pro") querySubject = "프로그래밍언어활용";
+            
+            currentExamTitle = `${querySubject} 집중 마스터`;
+            document.querySelectorAll('.session-btns button').forEach(b => b.classList.remove('active')); 
+
+            fetchQuestions(`${BACKEND_URL}/api/questions/subject?subject=${encodeURIComponent(querySubject)}`);
+        }
+
+        // 공통 코어 비동기 네트워크 엔진
+        async function fetchQuestions(url) {
             const testArea = document.getElementById("test-area");
             testArea.innerHTML = "<h3 style='text-align:center; color: var(--accent-color);'>🔄 클라우드 인프라에서 전 과목 기출 데이터를 가동 중입니다...</h3>";
 
             try {
-                const response = await fetch(`${BACKEND_URL}/api/questions?session=${sessionNum}`);
+                const response = await fetch(url);
                 if (!response.ok) throw new Error("네트워크 응답 실패");
                 
                 const data = await response.json();
                 if(data.length === 0) {
-                    testArea.innerHTML = "<h3 style='color: var(--danger-color);'>⚠️ 해당 회차의 데이터가 클라우드 DB에 적재되지 않았습니다.</h3>";
+                    testArea.innerHTML = "<h3 style='color: var(--danger-color);'>⚠️ 조건에 매칭되는 데이터 풀이 DB에 존재하지 않습니다.</h3>";
                     return;
                 }
                 renderQuestions(data);
@@ -361,7 +410,6 @@
         function markOMR(displayNum, answerVal) {
             userAnswers[displayNum] = answerVal; 
             
-            // 왼쪽 시험지 선택 클래스 제어
             for (let i = 1; i <= 4; i++) {
                 const label = document.getElementById(`label-q-${displayNum}-${i}`);
                 if(label) label.classList.remove("checked-opt");
@@ -369,7 +417,6 @@
             const activeLabel = document.getElementById(`label-q-${displayNum}-${answerVal}`);
             if(activeLabel) activeLabel.classList.add("checked-opt");
 
-            // 오른쪽 OMR 밍킹 클래스 제어
             for (let i = 1; i <= 4; i++) {
                 document.getElementById(`omr-${displayNum}-${i}`).classList.remove("selected");
             }
@@ -410,7 +457,7 @@
                 if (!userAnswers[index + 1]) hasUnanswered = true;
             });
 
-            if (hasUnanswered && !confirm("아직 풀지 않은 빈틈이 존재합니다. 이 상태로 답안을 전송할까요?")) return;
+            if (hasUnanswered && !confirm("아직 풀지 않은 문항이 존재합니다. 이대로 최종 제출 처리를 진행할까요?")) return;
 
             clearInterval(timerInterval); 
 
@@ -464,7 +511,6 @@
 
             const isPass = finalScore >= 60 && !isGwarak;
             
-            // 💡 고유 폴더명을 'Shin_Secret_Note'로 단일화하여 인덱스 조회 및 마이그레이션 무결성 최적화
             const payload = {
                 folderName: "Shin_Secret_Note",
                 examTitle: currentExamTitle,
@@ -480,10 +526,10 @@
                     body: JSON.stringify(payload)
                 });
                 const saveResult = await saveResponse.json();
-                console.log("서버 적재 원격 트랜잭션 메시지:", saveResult.message);
+                console.log("원격 레코드 동기화 완료:", saveResult.message);
             } catch(e) {
                 console.error("결과 서버 전송 실패:", e);
-                alert("채점 계산은 완료되었으나, 백엔드 서버 인프라 상태 불안정으로 DB 오답노트 일괄 적재에 실패했습니다.");
+                alert("채점 계산은 완료되었으나, 백엔드 허브와의 연결 지연으로 인해 오답노트 원격 적재에는 실패했습니다.");
             }
 
             const resultArea = document.getElementById("result-area");
