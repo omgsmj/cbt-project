@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
-const pdf = require('pdf-parse'); // 💡 상단 선언부 유지
+const PDFParser = require("pdf2json"); // 💡 패키지 바인딩 에러가 없는 안정적인 PDFParser 엔진으로 교체
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -268,18 +268,18 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        // 💡 [무적의 방어 매커니즘 바인딩] require의 결과 객체를 정밀 해체하여 함수 알맹이를 강제 발라냅니다.
-        const rawModule = require('pdf-parse');
-        const actualParser = typeof rawModule === 'function' ? rawModule : (rawModule.default || rawModule.pdf || rawModule.parse);
-        
-        if (typeof actualParser !== 'function') {
-            throw new Error("pdf-parse 패키지에서 가동 가능한 파싱 함수 인터페이스를 추적하지 못했습니다.");
-        }
+        // 💡 [엔진 전면 교체] 애매한 객체 탐색 분기를 제거하고 객체 지향 클래스 방식으로 버퍼 스트림 다이렉트 파싱
+        const pdfParser = new PDFParser(null, 1); // 1: 순수 텍스트 추출 필터 모드
 
-        const pdfData = await actualParser(req.file.buffer);
-        const rawText = pdfData.text.trim();
+        const rawText = await new Promise((resolve, reject) => {
+            pdfParser.on("pdfParser_dataError", errData => reject(new Error(errData.parserError)));
+            pdfParser.on("pdfParser_dataReady", () => {
+                resolve(pdfParser.getRawTextContent()); // 추출 완료된 원시 텍스트 스트림 반환
+            });
+            pdfParser.parseBuffer(req.file.buffer);
+        });
 
-        if (!rawText || rawText.length < 150) {
+        if (!rawText || rawText.trim().length < 150) {
             return res.status(400).json({ error: "PDF 내부 문자를 추출할 수 없습니다. 스캔본 이미지인지 확인하세요." });
         }
 
