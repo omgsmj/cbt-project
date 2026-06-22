@@ -5,7 +5,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
-const pdfParse = require('pdf-parse');
+const pdf = require('pdf-parse');
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -262,7 +262,7 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        const pdfData = await pdfParse(req.file.buffer);
+        const pdfData = await pdf(req.file.buffer);
         const rawText = pdfData.text.trim();
 
         if (!rawText || rawText.length < 150) {
