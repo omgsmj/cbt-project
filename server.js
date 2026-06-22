@@ -5,9 +5,7 @@ const { Pool } = require('pg');
 const cors = require('cors');
 const path = require('path'); 
 const multer = require('multer');
-// 변경 전: const pdfData = await pdf(req.file.buffer);
-// 변경 후:
-const pdfData = await (typeof pdf === 'function' ? pdf : pdf.default || pdf)(req.file.buffer);
+const pdf = require('pdf-parse'); // 💡 상단 선언부: pdf 이름으로 모듈 바인딩
 require('dotenv').config(); // .env 파일의 보안 정보 로드
 
 const app = express();
@@ -70,7 +68,13 @@ app.get('/api/questions', async (req, res) => {
 // [API 1-2] 회차별 + 과목별 복합 필터링 기출 조회 통로
 // ----------------------------------------------------
 app.get('/api/questions/subject', async (req, res) => {
-    const { subject, session } = req.query; 
+    let { subject, session } = req.query; 
+    
+    // 💡 [버그 수정] 프론트엔드가 전송하는 4과목 'pro' 규격을 DB용 한글 과목명으로 정적 매핑 교정
+    if (subject === "pro") {
+        subject = "프로그래밍언어활용";
+    }
+
     try {
         let result;
         if (session) {
@@ -245,7 +249,7 @@ app.post('/api/explain-ai', async (req, res) => {
 });
 
 // ----------------------------------------------------
-// 🚀 [API 6] 안전한 스마트 PDF 업로드 및 토큰 트래커 연동 엔진 (신설)
+// 🚀 [API 6] 안전한 스마트 PDF 업로드 및 토큰 트래커 연동 엔진
 // ----------------------------------------------------
 app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     const { adminPassword, sessionName } = req.body;
@@ -264,7 +268,9 @@ app.post('/api/upload-pdf', upload.single('pdfFile'), async (req, res) => {
     try {
         if (!req.file) return res.status(400).json({ error: "업로드된 PDF 파일이 없습니다." });
 
-        const pdfData = await pdf(req.file.buffer);
+        // 💡 런타임 객체 판별 처리로 'not a function' 에러 전면 봉쇄
+        const parseEngine = (typeof pdf === 'function') ? pdf : (pdf.default || pdf);
+        const pdfData = await parseEngine(req.file.buffer);
         const rawText = pdfData.text.trim();
 
         if (!rawText || rawText.length < 150) {
